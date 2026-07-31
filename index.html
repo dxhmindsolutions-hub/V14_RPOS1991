@@ -1,0 +1,2756 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+
+<title>Mini POS</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100">
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+
+const { useState, useEffect } = React;
+  
+const calcularHoraEntrega = (tiempoValor) => {
+  if (!tiempoValor) return "";
+
+  const ahora = new Date();
+  let minutos = 0;
+
+  if (tiempoValor.includes("h")) {
+
+    const match = tiempoValor.match(/(\d+)h\s*(\d+)?/);
+
+    if (match) {
+      minutos += parseInt(match[1]) * 60;
+
+      if (match[2]) {
+        minutos += parseInt(match[2]);
+      }
+    }
+
+  } else {
+
+    minutos = parseInt(tiempoValor) || 0;
+  }
+
+  const entrega = new Date(
+    ahora.getTime() + minutos * 60000
+  );
+
+  return entrega.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+  
+function POSApp() {
+  // LOGIN
+  const [logueado, setLogueado] = useState(false);
+  const [passInput, setPassInput] = useState("");
+  const [passError, setPassError] = useState(false);
+  const PASSWORD = "1234";
+
+  // ✅ TODOS los hooks deben estar ANTES de cualquier return condicional
+  const [numeroTicket, setNumeroTicket] = useState("");
+  const [articulos, setArticulos] = useState({});
+  const [ticket, setTicket] = useState([]);
+  const [categoriaActiva, setCategoriaActiva] = useState(null);
+  const [listaAbierta, setListaAbierta] = useState(true);
+  const [pedidoNumero, setPedidoNumero] = useState("");
+  const [pedidoTemporal, setPedidoTemporal] = useState("");
+  const [comensales, setComensales] = useState("");
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [modoGestion, setModoGestion] = useState(false);
+  const [modoTicket, setModoTicket] = useState(false);
+  const [modoCocina, setModoCocina] = useState(false);
+  const [modoAbiertos, setModoAbiertos] = useState(false);
+  const [modoAjustes, setModoAjustes] = useState(false);
+  const [subMenuEditando, setSubMenuEditando] = useState(null);
+  const [tipoPedido, setTipoPedido] = useState("comer");
+  const [telefono, setTelefono] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [zona, setZona] = useState("");
+  const [tiempo, setTiempo] = useState("");
+  const [metodoPago, setMetodoPago] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+  const [nuevo, setNuevo] = useState({ ref:"", nombre:"", precio:"", categoria:"" });
+  const [editando, setEditando] = useState(null);
+  const [busquedaGestion, setBusquedaGestion] = useState("");
+  const [productoEditando, setProductoEditando] = useState(null);
+  const [notaTemp, setNotaTemp] = useState("");
+  const [checksTemp, setChecksTemp] = useState({
+    aceite: false,
+    gluten: false,
+    verdura: false,
+    carne: false,
+    huevo: false,
+    marisco: false,
+    frutossecos: false
+  });
+  const [pedidos, setPedidos] = useState({
+    salon: {},
+    llevar: {},
+    recoger: {}
+  });
+  const [repartidores, setRepartidores] = useState(() => {
+    const data = localStorage.getItem("repartidores");
+    return data ? JSON.parse(data) : ["Repartidor 1", "Repartidor 2", "Repartidor 3"];
+  });
+  const [pedidosEntregados, setPedidosEntregados] = useState(() => {
+    const data = localStorage.getItem("pedidosEntregados");
+    return data ? JSON.parse(data) : {};
+    // formato: { "CARLOS M.": [ {id, total, hora, direccion}, ... ] }
+  });
+  const [modoMesas, setModoMesas] = useState(false);
+  const [seccionActiva, setSeccionActiva] = useState("restaurante");
+  const [pedidoSeleccionado, setPedidoSeleccionado] = useState(null);
+  const [modoClientes, setModoClientes] = useState(false);
+  const [modoRepartidores, setModoRepartidores] = useState(false);
+  const [busquedaClientes, setBusquedaClientes] = useState("");
+  const [clienteEditando, setClienteEditando] = useState(null);
+  const [modoPedidos, setModoPedidos] = useState(false);
+  const [avisos, setAvisos] = useState("");
+  const [notasPedido, setNotasPedido] = useState("");
+  const [repImprimiendo, setRepImprimiendo] = useState(null);
+  const [origenPedidos, setOrigenPedidos] = useState(null);
+
+  const [clientes, setClientes] = useState(() => {
+    const data = localStorage.getItem("clientes");
+    return data ? JSON.parse(data) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem("clientes", JSON.stringify(clientes));
+  }, [clientes]);
+
+  // Guardar repartidores en localStorage
+  useEffect(() => {
+    localStorage.setItem("repartidores", JSON.stringify(repartidores));
+  }, [repartidores]);
+
+  useEffect(() => {
+    localStorage.setItem("pedidosEntregados", JSON.stringify(pedidosEntregados));
+  }, [pedidosEntregados]);
+
+  useEffect(() => {
+    const data = localStorage.getItem("articulos");
+    if (data) setArticulos(JSON.parse(data));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("articulos", JSON.stringify(articulos));
+  }, [articulos]);
+
+  useEffect(() => {
+    const data = localStorage.getItem("pedidos");
+    if (data) setPedidos(JSON.parse(data));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("pedidos", JSON.stringify(pedidos));
+  }, [pedidos]);
+
+  useEffect(() => {
+    if (!pedidoNumero) return;
+    const tipo = tipoPedido === "comer" ? "salon" : tipoPedido;
+    const pedido = pedidos[tipo]?.[pedidoNumero];
+    if (pedido) {
+      setTicket(pedido.ticket || []);
+      setComensales(pedido.comensales || "");
+      setTelefono(pedido.telefono || "");
+      setDireccion(pedido.direccion || "");
+      setZona(pedido.zona || "");
+      setMetodoPago(pedido.metodoPago || "");
+      setTiempo(pedido.tiempo || "");
+      setAvisos(pedido.avisos || "");
+      setNotasPedido(pedido.notasPedido || "");
+    } else {
+      setTicket([]);
+      setComensales("");
+      setTelefono("");
+      setDireccion("");
+      setZona("");
+      setMetodoPago("");
+      setTiempo("");
+      setAvisos("");
+      setNotasPedido("");
+    }
+  }, [pedidoNumero, tipoPedido]);
+
+  useEffect(() => {
+    if (!pedidoNumero) return;
+    if (ticket.length === 0) return;
+    const tipo = tipoPedido === "comer" ? "salon" : tipoPedido;
+    setPedidos(prev => ({
+      ...prev,
+      [tipo]: {
+        ...prev[tipo],
+        [pedidoNumero]: {
+          ...(prev[tipo]?.[pedidoNumero] || {}),
+          ticket,
+          comensales,
+          telefono,
+          direccion,
+          zona,
+          metodoPago,
+          tiempo,
+          avisos,
+          notasPedido,
+        }
+      }
+    }));
+  }, [direccion, telefono, zona, tiempo, metodoPago, comensales]);
+
+  // Variable derivada (no es un hook, puede ir aquí)
+  const lista = categoriaActiva
+    ? Object.entries(articulos).filter(([_, a]) => a.categoria === categoriaActiva)
+    : [];
+
+  const intentarLogin = () => {
+    if (passInput === PASSWORD) {
+      setLogueado(true);
+      setPassError(false);
+    } else {
+      setPassError(true);
+      setPassInput("");
+    }
+  };
+
+  const volverInicio = () => {
+    setModoMesas(false);
+    setModoCocina(false);
+    setModoTicket(false);
+    setModoGestion(false);
+    setModoAjustes(false);
+    setModoPedidos(false);
+    setModoClientes(false);
+    setModoRepartidores(false);
+    setAvisos("");
+    setNotasPedido("");
+  };
+
+  // ✅ Return condicional del login DESPUÉS de todos los hooks
+  if (!logueado) {
+    return (
+      <div style={{
+        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+        height:"100vh", background:"#0f1117", fontFamily:"system-ui, sans-serif"
+      }}>
+        <div style={{
+          background:"#141720", border:"1px solid #1e2130", borderRadius:"20px",
+          padding:"48px 40px", width:"320px", display:"flex", flexDirection:"column", alignItems:"center", gap:"24px"
+        }}>
+          {/* Logo / título */}
+          <div style={{ textAlign:"center" }}>
+            <div style={{ fontSize:"32px", marginBottom:"6px" }}>🍽️</div>
+            <div style={{ fontSize:"22px", fontWeight:"bold", color:"#fff", letterSpacing:"1px" }}>Mini POS</div>
+          </div>
+
+          {/* Mensaje */}
+          <div style={{ fontSize:"20px", fontWeight:"bold", color:"#a78bfa", textAlign:"center" }}>
+            Hola 👋
+          </div>
+
+          {/* Input contraseña */}
+          <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:"10px" }}>
+            <input
+              type="password"
+              placeholder="Contraseña"
+              value={passInput}
+              onChange={e => { setPassInput(e.target.value); setPassError(false); }}
+              onKeyDown={e => e.key === "Enter" && intentarLogin()}
+              style={{
+                width:"100%", boxSizing:"border-box",
+                background:"#1a1d2a", border: passError ? "1.5px solid #ef4444" : "1.5px solid #2a2f45",
+                color:"#fff", padding:"14px 16px", borderRadius:"12px",
+                fontSize:"16px", outline:"none", textAlign:"center", letterSpacing:"4px"
+              }}
+            />
+            {passError && (
+              <div style={{ color:"#ef4444", fontSize:"13px", textAlign:"center" }}>
+                Contraseña incorrecta
+              </div>
+            )}
+          </div>
+
+          {/* Botón */}
+          <button
+            onClick={intentarLogin}
+            style={{
+              width:"100%", background:"linear-gradient(135deg,#7c3aed,#6d28d9)",
+              border:"none", color:"#fff", padding:"14px", borderRadius:"12px",
+              fontWeight:"bold", fontSize:"16px", cursor:"pointer"
+            }}
+          >
+            Entrar
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+const guardarPedido = (nuevoTicket = ticket) => {
+  setTicket(nuevoTicket);
+
+  if (!pedidoNumero) return;
+
+  const tipo = tipoPedido === "comer" ? "salon" : tipoPedido;
+
+  setPedidos(prev => ({
+    ...prev,
+    [tipo]: {
+      ...prev[tipo],
+      [pedidoNumero]: {
+        ticket: nuevoTicket,
+        comensales,
+        telefono,
+        direccion,
+        zona,
+        metodoPago,
+        tiempo,
+        avisos,
+        notasPedido,
+        repartidor: prev[tipo]?.[pedidoNumero]?.repartidor || "",
+        horaCreacion: prev[tipo]?.[pedidoNumero]?.horaCreacion || new Date().toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" })
+      }
+    }
+  }));
+};
+
+const cancelarPedido = () => {
+  if (!pedidoNumero) return;
+
+  const mensaje =
+    tipoPedido === "comer"
+      ? `¿Cancelar mesa ${pedidoNumero}?`
+      : "¿Cancelar este pedido?";
+
+  const ok = confirm(mensaje);
+  if (!ok) return;
+
+  // ❌ NO se guarda cliente — solo se borra el pedido
+  const tipo = tipoPedido === "comer" ? "salon" : tipoPedido;
+
+  setPedidos(prev => {
+    const nuevo = { ...prev };
+    nuevo[tipo] = { ...nuevo[tipo] };
+    delete nuevo[tipo][pedidoNumero];
+    return nuevo;
+  });
+
+  // limpiar todo
+  setTicket([]);
+  setPedidoNumero("");
+  setComensales("");
+  setTelefono("");
+  setDireccion("");
+  setZona("");
+  setMetodoPago("");
+  setTiempo("");
+  setAvisos("");
+  setNotasPedido("");
+  // 🔥 volver a mesas
+  setModoMesas(true);
+};
+  const exportarArticulos = () => {
+  const dataStr = JSON.stringify(articulos, null, 2);
+  const blob = new Blob([dataStr], { type: "application/json" });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "articulos_backup.json";
+  a.click();
+
+  URL.revokeObjectURL(url);
+};
+  // Convierte el contenido de un CSV (ref;name;price;category;active) a objeto de artículos
+  const parsearCSVArticulos = (texto) => {
+    // quitar BOM si existe
+    texto = texto.replace(/^\uFEFF/, "");
+
+    const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== "");
+    if (lineas.length < 2) throw new Error("El CSV está vacío");
+
+    // detectar separador (; o ,)
+    const separador = lineas[0].includes(";") ? ";" : ",";
+
+    const cabecera = lineas[0].split(separador).map(h => h.trim().toLowerCase());
+    const idxRef = cabecera.indexOf("ref");
+    const idxNombre = cabecera.indexOf("name");
+    const idxPrecio = cabecera.indexOf("price");
+    const idxCategoria = cabecera.indexOf("category");
+    const idxActivo = cabecera.indexOf("active");
+
+    if (idxRef === -1 || idxNombre === -1 || idxPrecio === -1 || idxCategoria === -1) {
+      throw new Error("El CSV debe tener las columnas: ref;name;price;category");
+    }
+
+    const nuevosArticulos = {};
+
+    for (let i = 1; i < lineas.length; i++) {
+      const cols = lineas[i].split(separador);
+      const ref = (cols[idxRef] || "").trim();
+      if (!ref) continue;
+
+      // si existe columna "active" y vale 0, se salta ese artículo
+      const activo = idxActivo !== -1 ? (cols[idxActivo] || "1").trim() : "1";
+      if (activo === "0") continue;
+
+      nuevosArticulos[ref] = {
+        nombre: (cols[idxNombre] || "").trim(),
+        precio: parseFloat((cols[idxPrecio] || "0").trim().replace(",", ".")) || 0,
+        categoria: (cols[idxCategoria] || "").trim()
+      };
+    }
+
+    if (Object.keys(nuevosArticulos).length === 0) {
+      throw new Error("No se encontraron artículos válidos en el archivo");
+    }
+
+    return nuevosArticulos;
+  };
+
+  const importarArticulos = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const esCSV = file.name.toLowerCase().endsWith(".csv");
+
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    try {
+      const contenido = e.target.result;
+      let data;
+
+      if (esCSV) {
+        data = parsearCSVArticulos(contenido);
+      } else {
+        data = JSON.parse(contenido);
+      }
+
+      if (!confirm(`Esto reemplazará TODOS los artículos por ${Object.keys(data).length} nuevos. ¿Continuar?`)) return;
+      setArticulos(data);
+      alert(`${Object.keys(data).length} artículos importados correctamente`);
+    } catch (err) {
+      alert("Error al importar archivo: " + err.message);
+    }
+  };
+
+  reader.readAsText(file, "UTF-8");
+  event.target.value = "";
+};
+
+  const categorias = [
+    "Entrantes","Sopas","Arroces","Tallarines","Fideos","Huevos y verduras",
+    "Otras Sugerencias","Ternera","Pollo","Cerdo","Pato","Langostinos","Calamares",
+    "Tailandesa","Para Variar","Para Compartir","Tentempiés","Bebidas","Café & Té",
+    "Postres","Bar","Domicilio","Varios"
+  ];
+
+  const MENUS = {
+  "303": { // MENU 2A
+    items: [
+      ["1",1],
+      ["4",1],
+      ["22",1],
+      ["58",1],
+      ["44",1]
+    ]
+  },
+
+  "304": { // MENU 2B
+    items: [
+      ["1",1],
+      ["4",1],
+      ["26",1],
+      ["65",1],
+      ["75",1]
+    ]
+  },
+
+  "305": { // MENU 3P
+    items: [
+      ["1",1],
+      ["4",1.5],
+      ["3",1],
+      ["22",1],
+      ["58",1],
+      ["44",1],
+      ["26",1]
+    ]
+  },
+
+  "306": { // MENU 4P
+    items: [
+      ["1",2],
+      ["4",2],
+      ["3",1],
+      ["22",2],
+      ["58",2],
+      ["65",1],
+      ["124",1]
+    ]
+  },
+
+  "307": { // MENU 5P
+    items: [
+      ["1",2],
+      ["4",2.5],
+      ["3",1],
+      ["22",2],
+      ["58",2],
+      ["37",1],
+      ["124",1],
+      ["65",1]
+    ]
+  },
+
+  "308": { // MENU 6P
+    items: [
+      ["1",3],
+      ["4",3],
+      ["3",1],
+      ["22",3],
+      ["58",2],
+      ["37",1],
+      ["124",1],
+      ["65",1],
+      ["74",1]
+    ]
+  }
+};
+  
+  // AGREGAR ARTÍCULO
+  const agregarArticulo = (ref) => {
+if (tipoPedido === "comer" && !pedidoNumero) {
+  return alert("Introduce mesa");
+}
+
+// 🔥 GENERAR NÚMERO AUTOMÁTICO SOLO AL AÑADIR PRIMER PRODUCTO
+if (
+  (tipoPedido === "llevar" || tipoPedido === "recoger") &&
+  !pedidoNumero
+) {
+  const nuevoNumero = generarNumeroPedido(tipoPedido);
+  setPedidoNumero(nuevoNumero);
+}
+
+  // 🔥 1. SI ES MENÚ → AÑADIR MENÚ + HIJOS
+  if (MENUS[ref]) {
+
+    const artMenu = articulos[ref];
+
+    // 👉 añadir línea del menú (visible en pantalla)
+ guardarPedido([
+  ...ticket,
+  {
+    ref,
+    ...artMenu,
+    cantidad: 1,
+    esMenuPadre: true,
+    mods: {}
+  }
+]);
+
+    return;
+  }
+
+  // 🔥 2. ARTÍCULO PERSONALIZADO
+  if (ref === "0") {
+    const nombre = prompt("Nombre del producto:");
+    if (!nombre) return;
+
+    const precioStr = prompt("Precio:");
+    const precio = parseFloat(precioStr);
+
+    if (isNaN(precio)) {
+      alert("Precio inválido");
+      return;
+    }
+
+    guardarPedido([
+      ...ticket,
+      {
+        ref: "0",
+        nombre,
+        precio,
+        cantidad: 1
+      }
+    ]);
+    return;
+  }
+
+  // 🔹 3. NORMAL
+  const art = articulos[ref];
+  if (!art) return;
+
+  const i = ticket.findIndex(
+  t => t.ref === ref && !t.esMenuPadre
+);
+
+  if (i !== -1) {
+    const copia = [...ticket];
+    copia[i].cantidad++;
+    guardarPedido(copia);
+  } else {
+    guardarPedido([...ticket, { ref, ...art, cantidad: 1 }]);
+  }
+};
+
+  // CONTROLES TICKET
+  const sumar = (ref) => {
+    guardarPedido(ticket.map(t => t.ref === ref ? {...t, cantidad: t.cantidad+1} : t));
+  };
+
+  const restar = (ref) => {
+  guardarPedido(
+    ticket
+      .map(t =>
+        t.ref === ref
+          ? { ...t, cantidad: t.cantidad - 1 }
+          : t
+      )
+      .filter(t => t.cantidad > 0)
+  );
+};
+
+  const eliminarLinea = (ref) => {
+    if (!confirm("¿Eliminar producto del ticket?")) return;
+    guardarPedido(ticket.filter(t => t.ref !== ref));
+  };
+
+ const editarNota = (item) => {
+  setProductoEditando(item);
+  setNotaTemp(item.nota || "");
+
+  setChecksTemp({
+    aceite: item.aceite || false,
+    gluten: item.gluten || false,
+    verdura: item.verdura || false,
+    carne: item.carne || false,
+    huevo: item.huevo || false,
+    marisco: item.marisco || false,
+    frutossecos: item.frutossecos || false
+  });
+};
+
+const editarSubMenu = (menuRef, subRef) => {
+  setSubMenuEditando({ menuRef, subRef });
+
+  setNotaTemp("");
+  setChecksTemp({
+    aceite: false,
+    gluten: false,
+    verdura: false,
+    carne: false,
+    huevo: false,
+    marisco: false,
+    frutossecos: false
+  });
+};
+
+  // GESTIÓN
+  const eliminarArticulo = (ref) => {
+    const copia = {...articulos};
+    delete copia[ref];
+    setArticulos(copia);
+  };
+
+const guardarArticulo = () => {
+  if (!nuevo.ref) return;
+
+  // 🔥 NORMALIZAR REFERENCIA
+  const ref = nuevo.ref.trim();
+
+ if (!editando && articulos[ref]) {
+  alert("❌ Esta referencia ya existe");
+  return;
+}
+
+  setArticulos({
+    ...articulos,
+    [ref]: {
+      nombre: nuevo.nombre,
+      precio: parseFloat(nuevo.precio) || 0,
+      categoria: nuevo.categoria
+    }
+  });
+
+  setNuevo({ ref:"", nombre:"", precio:"", categoria:"" });
+  setEditando(null);
+};
+
+  const editarArticulo = (ref) => {
+    setNuevo({ ref, ...articulos[ref] });
+    setEditando(ref);
+  };
+
+  // CÁLCULOS
+  const total = ticket.reduce((s, t) => s + t.precio * t.cantidad, 0);
+  const base = total / 1.1;
+  const iva = total - base;
+  const porPersona =
+  Number(comensales) > 0
+    ? (total / Number(comensales)).toFixed(2)
+    : null;
+  
+ const itemsNuevosCocina = () => {
+  let resultado = [];
+
+  ticket.forEach(t => {
+
+// 🔥 MENÚ → FORMATO CORTO
+if (MENUS[t.ref]) {
+
+  const menu = MENUS[t.ref];
+
+ const refs = menu.items.map(([r, mult]) => {
+
+  const mod = t.mods?.[r];
+  const cantidad = t.cantidad * mult;
+
+  if (!mod) return `${cantidad}x${r}`;
+
+  const lineas = mod.split("\n");
+
+  return [
+    `${cantidad}x${r}  ${lineas[0]}`,
+    ...lineas.slice(1).map(l => `      ${l}`)
+  ].join("\n");
+
+});
+
+  resultado.push({
+    esMenu: true,
+    nombre: `${t.cantidad} x ${t.nombre}`,
+    lineas: refs
+  });
+
+} 
+// 🔹 PRODUCTO NORMAL
+else {
+  resultado.push(t);
+}
+
+  });
+
+  return resultado;
+};
+  const generarNumeroTicket = () => {
+  
+    const ahora = new Date();
+    const dia = String(ahora.getDate()).padStart(2, "0");
+    const mes = String(ahora.getMonth() + 1).padStart(2, "0");
+    const hora = String(ahora.getHours()).padStart(2, "0");
+    const min = String(ahora.getMinutes()).padStart(2, "0");
+
+    const fechaKey = `${dia}${mes}`;
+    let data = JSON.parse(localStorage.getItem("ticketData")) || {};
+    if (!data[fechaKey]) data[fechaKey] = 0;
+    data[fechaKey]++;
+    localStorage.setItem("ticketData", JSON.stringify(data));
+
+    const numero = String(data[fechaKey]).padStart(5, "0");
+    return `${fechaKey}-${hora}${min}-${numero}`;
+  };
+
+ const generarNumeroPedido = (tipo, preview = false) => {
+
+  let contadores = JSON.parse(localStorage.getItem("contadoresPedidos")) || {
+    llevar: 40,
+    recoger: 70
+  };
+
+  if (tipo === "llevar") {
+
+    const numero = contadores.llevar;
+
+    if (!preview) {
+      contadores.llevar++;
+
+      localStorage.setItem(
+        "contadoresPedidos",
+        JSON.stringify(contadores)
+      );
+    }
+
+    return `LLEVAR ${numero}`;
+  }
+
+  if (tipo === "recoger") {
+
+    const numero = contadores.recoger;
+
+    if (!preview) {
+      contadores.recoger++;
+
+      localStorage.setItem(
+        "contadoresPedidos",
+        JSON.stringify(contadores)
+      );
+    }
+
+    return `RECOGER ${numero}`;
+  }
+
+  return "";
+};
+  // ====================
+  // 🎟️ MODO TICKET
+  // ====================
+if (modoCocina) {
+  return (
+    <div id="cocina" className="p-4 bg-white font-mono">
+
+      {/* CABECERA */}
+   
+
+      {/* MESA GRANDE */}
+    <div className="text-center text-5xl font-bold">
+  {tipoPedido === "comer"
+    ? `MESA ${pedidoNumero}`
+    : pedidoNumero}
+</div>
+
+ {(tipoPedido === "llevar" || tipoPedido === "recoger") && tiempo && (
+  <div className="text-center text-xl font-bold mt-1">
+    ⏱ {tiempo}
+  </div>
+)}
+
+      {/* HORA */}
+      <div className="text-center text-sm mb-2">
+        {new Date().toLocaleTimeString()}
+      </div>
+
+
+ {/* PRODUCTOS ORDENADOS */}
+<>
+  {itemsNuevosCocina()
+    .sort((a, b) => {
+      const esBebida = (item) =>
+        item.categoria === "Bebidas" ||
+        item.categoria === "Café & Té" ||
+        item.categoria === "Bar";
+
+      if (esBebida(a) && !esBebida(b)) return 1;
+      if (!esBebida(a) && esBebida(b)) return -1;
+      return 0;
+    })
+    .map((t, i) => {
+
+      if (t.esMenu) {
+        return (
+          <div key={i} className="mb-2">
+            <div className="text-2xl font-bold">{t.nombre}</div>
+
+            <div className="text-xl font-bold pl-6 leading-tight">
+              {t.lineas.map((l, idx) => {
+                const limpio = l.replace(/[()]/g, "");
+                const partes = limpio.split("\n");
+
+                return (
+                  <div key={idx}>
+                    {partes.map((linea, i) => (
+                      <div key={i} className={i > 0 ? "pl-8" : ""}>
+                        {linea}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div key={i} className="mb-1">
+          <div className="flex items-end gap-2">
+            <div className="text-2xl font-bold whitespace-nowrap">
+              {t.cantidad} x {t.ref}
+            </div>
+
+            {(t.verdura || t.carne || t.gluten || t.aceite || t.huevo || t.marisco || t.frutossecos || t.nota) && (
+              <div className="text-lg font-bold leading-tight">
+                {[
+                  t.verdura && "NO VERDURA",
+                  t.carne && "NO CARNE",
+                  t.gluten && "NO GLUTEN",
+                  t.aceite && "ACEITE",
+                  t.huevo && "NO HUEVO",
+                  t.marisco && "ALERGIA MARISCO",
+                  t.frutossecos && "ALERGIA FRUTOS SECOS",
+                  t.nota
+                ].filter(Boolean).join(" / ")}
+              </div>
+            )}
+          </div>
+
+          <div className="text-xs leading-none">
+            {t.nombre?.toUpperCase()}
+          </div>
+
+          <div className="border-b border-dashed border-black mt-1"></div>
+        </div>
+      );
+    })}
+
+{(tipoPedido === "llevar" || tipoPedido === "recoger" || tipoPedido === "comer") && (
+    <div className="mt-3 text-xl font-bold">
+      {direccion && <div>📍 {direccion} {zona && `- ${zona}`}</div>}
+      {telefono && <div>📞 {telefono}</div>}
+      {metodoPago && <div>💳 {metodoPago}</div>}
+      {avisos && <div className="text-yellow-400">⚠️ {avisos}</div>}
+      {notasPedido && <div>📝 {notasPedido}</div>}
+      {tiempo && (
+        <div className="mt-1">
+          🕒 ENTREGA: {calcularHoraEntrega(tiempo)}
+        </div>
+      )}
+    </div>
+  )}
+</>
+
+      {/* BOTONES */}
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={() => window.print()}
+          className="w-1/2 bg-green-600 text-white p-3 rounded text-lg"
+        >
+          🖨️ Imprimir
+        </button>
+
+        <button
+          onClick={() => {
+            setModoCocina(false);
+            if (origenPedidos) {
+              setModoPedidos(true);
+              setPedidoSeleccionado(origenPedidos);
+              setOrigenPedidos(null);
+            }
+          }}
+          className="w-1/2 bg-black text-white p-3 rounded text-lg"
+        >
+          ← Volver
+        </button>
+      </div>
+
+    </div>
+  );
+}
+  if (modoTicket) {
+    return (
+      <div id="ticket" className="p-4 bg-white text-xs font-mono">
+        <div className="text-center">
+          <div className="text-lg font-bold">F</div>
+          <div>x</div>
+          <div>NIF/CIF: 8</div>
+          <div>C/ R</div>
+          <div>08 V</div>
+          <div>Tel: 9 </div>
+        </div>
+
+        <div className="text-center my-2">------------------------------------</div>
+        <div className="text-center text-[11px] my-1">COMPROBANTE · <span className="font-bold">NO FACTURA</span></div>
+        <div className="text-center text-[11px]">TICKET {numeroTicket}</div>
+        <div className="text-center my-2">------------------------------------</div>
+        <div className="text-center text-xl font-bold">MESA {pedidoNumero}</div>
+        <div className="text-center mb-2">------------------------------------</div>
+        
+      
+{/* CABECERA */}
+<div className="flex justify-between font-bold border-b pb-1 mb-1">
+  <span className="w-8">CAN.</span>
+  <span className="w-12">PRE.</span>
+  <span className="flex-1 text-left pl-2">CONCEPTO</span>
+  <span className="w-12 text-right">SUMA</span>
+</div>
+
+{/* PRODUCTOS */}
+{ticket.map((t,i)=>(
+  <div key={i} className="flex justify-between text-xs font-mono">
+
+    {/* IZQUIERDA */}
+    <span>
+      {t.cantidad} x {t.precio.toFixed(2)} {t.nombre}
+    </span>
+
+    {/* DERECHA */}
+    <span className="ml-2">
+      {(t.precio*t.cantidad).toFixed(2)}
+    </span>
+
+  </div>
+))}
+
+        <div className="text-center my-2">------------------------------------</div>
+
+        <div className="flex justify-between text-xl font-bold">
+          <span>TOTAL</span>
+          <span>{total.toFixed(2)}€</span>
+        </div>
+
+        {porPersona && (
+          <div className="flex justify-between mt-1">
+            <span>P/PERSONA</span>
+            <span>{porPersona}€</span>
+          </div>
+        )}
+
+        <div className="text-center text-[10px] mt-1">Base: {base.toFixed(2)}€ · IVA 10%: {iva.toFixed(2)}€</div>
+
+        <div className="text-center my-2">------------------------------------</div>
+        <div className="text-center">IVA incluido</div>
+        <div className="text-center">Gracias por su visita</div>
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={() => window.print()} className="w-1/2 bg-green-600 text-white p-2 rounded">🖨️ Imprimir</button>
+          <button onClick={() => {
+            setModoTicket(false);
+            if (origenPedidos) {
+              setModoPedidos(true);
+              setPedidoSeleccionado(origenPedidos);
+              setOrigenPedidos(null);
+            }
+          }} className="w-1/2 bg-black text-white p-2 rounded">← Volver</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ====================
+// ⚙️ AJUSTES
+// ====================
+if (modoAjustes) {
+  const ahora = new Date();
+  const horaAhora = ahora.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0f1117", color:"#fff", fontFamily:"system-ui,sans-serif" }}>
+
+      {/* NAV */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130", flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+          <button onClick={()=>setModoAjustes(false)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>☰</button>
+          <span style={{ fontWeight:"bold", fontSize:"16px", color:"#fff" }}>Mini POS</span>
+        </div>
+        <div style={{ display:"flex", gap:"4px" }}>
+          {[
+            { label:"🧾 Pedidos", active:false, onClick:()=>{ setModoAjustes(false); setModoPedidos(true); setPedidoSeleccionado(null); } },
+            { label:"⊞ Mesas", active:false, onClick:()=>{ setModoAjustes(false); setModoMesas(true); } },
+            
+            { label:"⚙️ Ajustes", active:true, onClick:()=>{} }
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.onClick} style={{
+              background:"transparent", border:"none",
+              color: btn.active ? "#a78bfa" : "#888",
+              fontWeight: btn.active ? "bold" : "normal",
+              padding:"8px 14px", borderRadius:"8px", cursor:"pointer", fontSize:"14px",
+              borderBottom: btn.active ? "2px solid #a78bfa" : "2px solid transparent"
+            }}>{btn.label}</button>
+          ))}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+          <span style={{ color:"#aaa", fontSize:"14px" }}>{horaAhora}</span>
+          <button onClick={()=>setModoAjustes(false)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>🏠</button>
+        </div>
+      </div>
+
+      <div style={{ padding:"24px", maxWidth:"480px", margin:"0 auto", width:"100%" }}>
+      <div style={{ fontSize:"22px", fontWeight:"bold", marginBottom:"20px", color:"#fff" }}>⚙️ Ajustes</div>
+
+      {[
+        { label:"👥 Clientes", onClick:() => { setModoClientes(true); setModoAjustes(false); } },
+        { label:"🍜 Artículos", onClick:() => { setModoGestion(true); setModoAjustes(false); } },
+        { label:"🛵 Repartidores", onClick:() => { setModoRepartidores(true); setModoAjustes(false); } },
+        { label:"🔄 Reiniciar numeración", onClick:() => {
+          if (!confirm("¿Reiniciar la numeración de pedidos?")) return;
+          localStorage.setItem("contadoresPedidos", JSON.stringify({ llevar:40, recoger:70 }));
+          alert("Numeración reiniciada");
+        }},
+      ].map(btn => (
+        <button key={btn.label} onClick={btn.onClick} style={{
+          width:"100%", background:"#141720", border:"1px solid #1e2130",
+          color:"#fff", padding:"16px", borderRadius:"12px", fontWeight:"bold",
+          fontSize:"15px", cursor:"pointer", marginBottom:"10px",
+          textAlign:"left", display:"flex", alignItems:"center", gap:"10px"
+        }}>{btn.label}</button>
+      ))}
+
+      </div>
+    </div>
+  );
+}
+
+  // ====================
+  // 🛵 REPARTIDORES
+  // ====================
+  if (modoRepartidores) {
+    const imprimirCuentas = (rep) => {
+      const entregas = pedidosEntregados[rep] || [];
+      const totalEfectivo = entregas.filter(e=>e.metodoPago==="EFECTIVO").reduce((s,e)=>s+(e.total||0),0);
+      const totalTarjeta  = entregas.filter(e=>e.metodoPago!=="EFECTIVO"&&e.metodoPago).reduce((s,e)=>s+(e.total||0),0);
+      const totalRep = entregas.reduce((s,e)=>s+(e.total||0),0);
+      window.print();
+    };
+
+    if (repImprimiendo) {
+      const entregas = pedidosEntregados[repImprimiendo] || [];
+      const totalEfectivo = entregas.filter(e=>e.metodoPago==="EFECTIVO").reduce((s,e)=>s+(e.total||0),0);
+      const totalTarjeta  = entregas.filter(e=>e.metodoPago&&e.metodoPago!=="EFECTIVO").reduce((s,e)=>s+(e.total||0),0);
+      const totalRep = entregas.reduce((s,e)=>s+(e.total||0),0);
+      return (
+        <div id="repPrint" style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0f1117", color:"#fff", fontFamily:"system-ui,sans-serif" }}>
+          <style>{`@media print { body * { visibility:hidden; } #repPrint, #repPrint * { visibility:visible; } #repPrint { position:fixed; top:0; left:0; width:100%; background:#fff; color:#000; } .no-print { display:none !important; } }`}</style>
+          <div className="no-print" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130" }}>
+            <button onClick={() => setRepImprimiendo(null)} style={{ background:"none", border:"none", color:"#a78bfa", fontSize:"14px", cursor:"pointer" }}>← Volver</button>
+            <span style={{ fontWeight:"bold", fontSize:"16px" }}>🖨️ Vista previa</span>
+            <button onClick={() => window.print()} style={{ background:"#1d4ed8", border:"none", color:"#fff", padding:"8px 18px", borderRadius:"8px", fontWeight:"bold", cursor:"pointer" }}>🖨️ Imprimir</button>
+          </div>
+          <div style={{ padding:"32px", maxWidth:"480px", margin:"0 auto", width:"100%", fontFamily:"monospace" }}>
+            <div style={{ fontSize:"22px", fontWeight:"bold", marginBottom:"4px" }}>🛵 {repImprimiendo}</div>
+            <div style={{ color:"#888", fontSize:"13px", marginBottom:"20px" }}>{new Date().toLocaleDateString("es-ES")} · {new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>
+
+            <div style={{ display:"flex", gap:"12px", marginBottom:"20px" }}>
+              <div style={{ flex:1, background:"#141720", border:"1px solid #14532d", borderRadius:"10px", padding:"14px", textAlign:"center" }}>
+                <div style={{ color:"#888", fontSize:"11px", marginBottom:"4px" }}>Entregados</div>
+                <div style={{ color:"#fff", fontSize:"26px", fontWeight:"bold" }}>{entregas.length}</div>
+              </div>
+              <div style={{ flex:1, background:"#141720", border:"1px solid #14532d", borderRadius:"10px", padding:"14px", textAlign:"center" }}>
+                <div style={{ color:"#888", fontSize:"11px", marginBottom:"4px" }}>Efectivo</div>
+                <div style={{ color:"#4ade80", fontSize:"20px", fontWeight:"bold" }}>{totalEfectivo.toFixed(2)}€</div>
+              </div>
+              <div style={{ flex:1, background:"#141720", border:"1px solid #1e3a5f", borderRadius:"10px", padding:"14px", textAlign:"center" }}>
+                <div style={{ color:"#888", fontSize:"11px", marginBottom:"4px" }}>Tarjeta</div>
+                <div style={{ color:"#60a5fa", fontSize:"20px", fontWeight:"bold" }}>{totalTarjeta.toFixed(2)}€</div>
+              </div>
+            </div>
+
+            <div style={{ background:"#141720", border:"1px solid #1e2130", borderRadius:"10px", padding:"14px", marginBottom:"16px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", fontWeight:"bold", fontSize:"18px", color:"#fff" }}>
+                <span>Total</span><span>{totalRep.toFixed(2)}€</span>
+              </div>
+            </div>
+
+            {entregas.length > 0 && (
+              <div style={{ background:"#141720", border:"1px solid #1e2130", borderRadius:"10px", overflow:"hidden" }}>
+                <div style={{ padding:"10px 14px", borderBottom:"1px solid #1e2130", display:"flex", gap:"8px", fontWeight:"bold", fontSize:"12px", color:"#666" }}>
+                  <span style={{ width:"44px" }}>Hora</span>
+                  <span style={{ flex:1 }}>Dirección</span>
+                  <span style={{ width:"48px" }}>Pago</span>
+                  <span style={{ width:"60px", textAlign:"right" }}>Importe</span>
+                </div>
+                {entregas.map((e,i) => (
+                  <div key={i} style={{ padding:"8px 14px", borderBottom:"1px solid #1e2130", display:"flex", gap:"8px", alignItems:"center", fontSize:"13px" }}>
+                    <span style={{ color:"#666", width:"44px", flexShrink:0 }}>{e.hora||"-"}</span>
+                    <span style={{ color:"#ccc", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{e.direccion||"-"}</span>
+                    <span style={{ width:"48px", flexShrink:0, color: e.metodoPago==="EFECTIVO"?"#4ade80":"#60a5fa", fontSize:"11px", fontWeight:"bold" }}>{e.metodoPago==="EFECTIVO"?"💵 EFE":"💳 TAR"}</span>
+                    <span style={{ color:"#fff", fontWeight:"bold", fontFamily:"monospace", width:"60px", textAlign:"right" }}>{(e.total||0).toFixed(2)}€</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0f1117", color:"#fff", fontFamily:"system-ui,sans-serif" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130", flexShrink:0 }}>
+          <button onClick={() => { setModoRepartidores(false); setModoAjustes(true); }} style={{ background:"none", border:"none", color:"#a78bfa", fontSize:"14px", cursor:"pointer" }}>← Ajustes</button>
+          <span style={{ fontWeight:"bold", fontSize:"16px" }}>🛵 Repartidores</span>
+          <button onClick={volverInicio} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>🏠</button>
+        </div>
+        <div style={{ padding:"16px", maxWidth:"560px", margin:"0 auto", width:"100%", overflowY:"auto", flex:1 }}>
+
+          {/* TARJETA POR REPARTIDOR */}
+          {repartidores.map((rep, idx) => {
+            const entregas = pedidosEntregados[rep] || [];
+            const totalEfectivo = entregas.filter(e=>e.metodoPago==="EFECTIVO").reduce((s,e)=>s+(e.total||0),0);
+            const totalTarjeta  = entregas.filter(e=>e.metodoPago&&e.metodoPago!=="EFECTIVO").reduce((s,e)=>s+(e.total||0),0);
+            const totalRep = entregas.reduce((s,e)=>s+(e.total||0),0);
+            return (
+              <div key={idx} style={{ background:"#141720", border:"1px solid #1e2130", borderRadius:"12px", padding:"16px", marginBottom:"14px" }}>
+                {/* CABECERA: nombre + estado + borrar */}
+                <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"14px" }}>
+                  <input value={rep} onChange={e => { const c=[...repartidores]; c[idx]=e.target.value; setRepartidores(c); }}
+                    style={{ flex:1, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"10px 12px", borderRadius:"8px", fontSize:"15px", fontWeight:"bold" }} />
+                  <span style={{ background:"#14532d", color:"#4ade80", fontSize:"11px", padding:"4px 9px", borderRadius:"20px", fontWeight:"bold", whiteSpace:"nowrap" }}>● Disponible</span>
+                  <button onClick={() => { if(!confirm(`¿Eliminar ${rep}?`)) return; setRepartidores(repartidores.filter((_,i)=>i!==idx)); }}
+                    style={{ background:"#7f1d1d", border:"none", color:"#ef4444", borderRadius:"8px", padding:"10px 13px", cursor:"pointer", fontWeight:"bold" }}>✕</button>
+                </div>
+
+                {/* STATS: Entregados · Efectivo · Tarjeta · Total */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"8px", marginBottom:"14px" }}>
+                  <div style={{ background:"#1a1d2a", borderRadius:"8px", padding:"10px 8px", textAlign:"center" }}>
+                    <div style={{ color:"#888", fontSize:"10px", marginBottom:"3px" }}>Entregados</div>
+                    <div style={{ color:"#fff", fontWeight:"bold", fontSize:"20px" }}>{entregas.length}</div>
+                  </div>
+                  <div style={{ background:"#1a1d2a", border:"1px solid #14532d", borderRadius:"8px", padding:"10px 8px", textAlign:"center" }}>
+                    <div style={{ color:"#888", fontSize:"10px", marginBottom:"3px" }}>Efectivo</div>
+                    <div style={{ color:"#4ade80", fontWeight:"bold", fontSize:"16px" }}>{totalEfectivo.toFixed(2)}€</div>
+                  </div>
+                  <div style={{ background:"#1a1d2a", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px 8px", textAlign:"center" }}>
+                    <div style={{ color:"#888", fontSize:"10px", marginBottom:"3px" }}>Tarjeta</div>
+                    <div style={{ color:"#60a5fa", fontWeight:"bold", fontSize:"16px" }}>{totalTarjeta.toFixed(2)}€</div>
+                  </div>
+                  <div style={{ background:"#1a1d2a", borderRadius:"8px", padding:"10px 8px", textAlign:"center" }}>
+                    <div style={{ color:"#888", fontSize:"10px", marginBottom:"3px" }}>Total</div>
+                    <div style={{ color:"#fff", fontWeight:"bold", fontSize:"16px" }}>{totalRep.toFixed(2)}€</div>
+                  </div>
+                </div>
+
+                {/* LISTA ENTREGAS */}
+                {entregas.length > 0 && (
+                  <div style={{ marginBottom:"12px", background:"#0f1117", borderRadius:"8px", overflow:"hidden" }}>
+                    {entregas.map((e,i) => (
+                      <div key={i} style={{ display:"flex", gap:"8px", alignItems:"center", padding:"6px 10px", borderBottom:"1px solid #1e2130", fontSize:"12px" }}>
+                        <span style={{ color:"#555", width:"40px", flexShrink:0 }}>{e.hora||"-"}</span>
+                        <span style={{ color:"#ccc", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{e.direccion||"-"}</span>
+                        <span style={{ color: e.metodoPago==="EFECTIVO"?"#4ade80":"#60a5fa", fontSize:"10px", fontWeight:"bold", width:"36px", flexShrink:0 }}>{e.metodoPago==="EFECTIVO"?"EFE":"TAR"}</span>
+                        <span style={{ color:"#fff", fontFamily:"monospace", fontWeight:"bold", width:"52px", textAlign:"right" }}>{(e.total||0).toFixed(2)}€</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* BOTONES */}
+                <div style={{ display:"flex", gap:"8px" }}>
+                  <button onClick={() => setRepImprimiendo(rep)} style={{ flex:1, background:"#1e3a5f", border:"1px solid #1d4ed8", color:"#60a5fa", padding:"9px", borderRadius:"8px", cursor:"pointer", fontWeight:"bold", fontSize:"13px" }}>
+                    🖨️ Imprimir cuentas
+                  </button>
+                  <button onClick={() => {
+                    if(!confirm(`¿Reiniciar pedidos entregados de ${rep}?`)) return;
+                    setPedidosEntregados(prev => ({...prev, [rep]: []}));
+                  }} style={{ flex:1, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#888", padding:"9px", borderRadius:"8px", cursor:"pointer", fontSize:"13px" }}>
+                    🔄 Reiniciar
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* AÑADIR REPARTIDOR */}
+          <button onClick={() => setRepartidores([...repartidores, `Repartidor ${repartidores.length+1}`])}
+            style={{ width:"100%", background:"#141720", border:"1px dashed #2a2f45", color:"#888", padding:"13px", borderRadius:"10px", cursor:"pointer", fontSize:"14px", marginTop:"4px" }}>
+            + Añadir repartidor
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ====================
+  // 👥 GESTIÓN CLIENTES
+  // ====================
+  if (modoClientes) {
+    const listaClientes = Object.values(clientes).filter(c => {
+      const q = busquedaClientes.toLowerCase();
+      return !q || c.telefono?.includes(q) || c.nombre?.toLowerCase().includes(q) || c.direccion?.toLowerCase().includes(q);
+    }).sort((a,b) => (b.totalPedidos||0) - (a.totalPedidos||0));
+
+    const exportarClientes = () => {
+      const BOM = "\uFEFF";
+      const csv = BOM + ["Telefono,Nombre,Direccion,Zona,Pago habitual,Pedidos,Ultimo pedido",
+        ...Object.values(clientes).map(c =>
+          `${c.telefono||""},${c.nombre||""},${c.direccion||""},${c.zona||""},${c.metodoPago||""},${c.totalPedidos||0},${c.ultimoPedido||""}`
+        )
+      ].join("\n");
+      const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+      a.download = "clientes.csv"; a.click();
+    };
+
+    const importarClientes = (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const lines = ev.target.result.split("\n").slice(1).filter(Boolean);
+          const imported = {};
+          lines.forEach(line => {
+            const [telefono,nombre,direccion,zona,metodoPago,totalPedidos,ultimoPedido] = line.split(",");
+            if (telefono) imported[telefono] = { telefono, nombre, direccion, zona, metodoPago, totalPedidos: parseInt(totalPedidos)||0, ultimoPedido };
+          });
+          setClientes(prev => ({ ...prev, ...imported }));
+          alert(`${Object.keys(imported).length} clientes importados`);
+        } catch { alert("Error al importar"); }
+      };
+      reader.readAsText(file);
+    };
+
+    return (
+      <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0f1117", color:"#fff", fontFamily:"system-ui,sans-serif" }}>
+
+        {/* NAV */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130", flexShrink:0 }}>
+          <button onClick={() => { setModoClientes(false); setModoAjustes(true); }} style={{ background:"none", border:"none", color:"#a78bfa", fontSize:"14px", cursor:"pointer" }}>← Ajustes</button>
+          <span style={{ fontWeight:"bold", fontSize:"16px" }}>👥 Clientes</span>
+          <button onClick={volverInicio} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>🏠</button>
+        </div>
+
+        <div style={{ padding:"16px", maxWidth:"600px", margin:"0 auto", width:"100%", overflowY:"auto", flex:1 }}>
+
+          {/* BUSCADOR */}
+          <input
+            placeholder="🔍 Buscar por teléfono, nombre o dirección..."
+            value={busquedaClientes}
+            onChange={e => setBusquedaClientes(e.target.value)}
+            style={{ width:"100%", boxSizing:"border-box", background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"12px 14px", borderRadius:"10px", fontSize:"14px", marginBottom:"12px" }}
+          />
+
+          {/* ACCIONES GLOBALES — 4 botones en una fila */}
+          {(() => {
+            const btnStyle = { flex:1, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"10px 4px", borderRadius:"8px", fontWeight:"bold", fontSize:"12px", cursor:"pointer", textAlign:"center" };
+            return (
+              <div style={{ display:"flex", gap:"6px", marginBottom:"20px" }}>
+                <button onClick={exportarClientes} style={btnStyle}>⬇️ Exportar</button>
+                <label style={{...btnStyle, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer"}}>
+                  ⬆️ Importar
+                  <input type="file" accept=".csv" onChange={importarClientes} style={{ display:"none" }} />
+                </label>
+                <button onClick={() => {
+                  if (!confirm("¿Reiniciar historial de pedidos de todos los clientes? Sus datos se conservarán.")) return;
+                  setClientes(prev => { const n={}; Object.entries(prev).forEach(([k,c])=>{ n[k]={...c,totalPedidos:0,ultimoPedido:""}; }); return n; });
+                  alert("Historial reiniciado");
+                }} style={btnStyle}>🔄 Reiniciar</button>
+                <button onClick={() => {
+                  if (!confirm("¿Eliminar TODOS los clientes? No se puede deshacer.")) return;
+                  setClientes({});
+                  alert("Clientes eliminados");
+                }} style={{...btnStyle, color:"#ef4444"}}>💣 Eliminar</button>
+              </div>
+            );
+          })()}
+
+          {/* CONTADOR */}
+          <div style={{ color:"#555", fontSize:"12px", marginBottom:"10px" }}>
+            {listaClientes.length} cliente{listaClientes.length !== 1 ? "s" : ""}
+            {Object.keys(clientes).length > listaClientes.length ? ` (de ${Object.keys(clientes).length})` : ""}
+          </div>
+
+          {/* LISTA */}
+          {listaClientes.length === 0 ? (
+            <div style={{ color:"#444", textAlign:"center", paddingTop:"40px", fontSize:"14px" }}>
+              {busquedaClientes ? "Sin resultados" : "Aún no hay clientes registrados"}
+            </div>
+          ) : listaClientes.map(c => (
+            <div key={c.telefono} style={{ background:"#141720", border:"1px solid #1e2130", borderRadius:"12px", padding:"14px", marginBottom:"10px" }}>
+              {clienteEditando?.telefono === c.telefono ? (
+                // MODO EDICIÓN
+                <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+                  <input value={clienteEditando.nombre||""} onChange={e=>setClienteEditando({...clienteEditando, nombre:e.target.value})}
+                    placeholder="Nombre" style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }} />
+                  <div style={{ display:"flex", gap:"6px" }}>
+                    <input value={clienteEditando.telefono||""} onChange={e=>setClienteEditando({...clienteEditando, telefono:e.target.value})}
+                      placeholder="📞 Teléfono" style={{ flex:1, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }} />
+                    <input value={clienteEditando.telefonoSecundario||""} onChange={e=>setClienteEditando({...clienteEditando, telefonoSecundario:e.target.value})}
+                      placeholder="📞 Tel. secundario" style={{ flex:1, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }} />
+                  </div>
+                  <div style={{ display:"flex", gap:"6px" }}>
+                    <input value={clienteEditando.direccion||""} onChange={e=>setClienteEditando({...clienteEditando, direccion:e.target.value})}
+                      placeholder="📍 Dirección" style={{ flex:2, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }} />
+                    <select value={clienteEditando.zona||""} onChange={e=>setClienteEditando({...clienteEditando, zona:e.target.value})}
+                      style={{ flex:1, background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }}>
+                      <option value="">Zona</option>
+                      <option>VNG</option><option>TACÓ</option><option>TENIS</option><option>COLLADA</option>
+                      <option>FONDO SOMELLA</option><option>PRAT DE VILANOVA</option><option>URB. SANTA MARIA</option>
+                      <option>ROQUETES</option><option>CUBELLES</option><option>CAMPING VILANOVA PARK</option>
+                      <option>BAR HIGUERA</option><option>CINES ODEON</option>
+                    </select>
+                  </div>
+                  <div style={{ display:"flex", gap:"6px" }}>
+                    <select value={clienteEditando.avisos||""} onChange={e=>setClienteEditando({...clienteEditando, avisos:e.target.value})}
+                      style={{ flex:1, background:"#1a1d2a", border:"1px solid " + (clienteEditando.avisos ? "#f59e0b" : "#2a2f45"), color: clienteEditando.avisos ? "#f59e0b" : "#aaa", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }}>
+                      <option value="">🔔 Aviso de entrega</option>
+                      <option value="NO VA TIMBRE">🔕 NO VA TIMBRE</option>
+                      <option value="LLAMAR ANTES DE SALIR">📞 LLAMAR ANTES DE SALIR</option>
+                      <option value="LLAMAR AL LLEGAR">🚪 LLAMAR AL LLEGAR</option>
+                    </select>
+                  </div>
+                  <input value={clienteEditando.notasCliente||""} onChange={e=>setClienteEditando({...clienteEditando, notasCliente:e.target.value})}
+                    placeholder="📝 Notas del cliente..." style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"8px 10px", borderRadius:"8px", fontSize:"13px" }} />
+                  <div style={{ display:"flex", gap:"8px" }}>
+                    <button onClick={() => {
+                      setClientes(prev => {
+                        const nuevo = { ...prev };
+                        if (clienteEditando.telefono !== c.telefono) delete nuevo[c.telefono];
+                        nuevo[clienteEditando.telefono] = clienteEditando;
+                        return nuevo;
+                      });
+                      setClienteEditando(null);
+                    }} style={{ flex:1, background:"#16a34a", border:"none", color:"#fff", padding:"8px", borderRadius:"8px", fontWeight:"bold", cursor:"pointer", fontSize:"13px" }}>✅ Guardar</button>
+                    <button onClick={() => setClienteEditando(null)} style={{ flex:1, background:"#1e2130", border:"1px solid #333", color:"#aaa", padding:"8px", borderRadius:"8px", cursor:"pointer", fontSize:"13px" }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                // MODO VISTA
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"4px" }}>
+                      <span style={{ color:"#a78bfa", fontWeight:"bold", fontSize:"15px" }}>📞 {c.telefono}</span>
+                      {c.totalPedidos > 0 && (
+                        <span style={{ background:"#1e2130", color:"#888", fontSize:"11px", padding:"2px 7px", borderRadius:"10px" }}>
+                          {c.totalPedidos} pedido{c.totalPedidos !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    {c.nombre && <div style={{ color:"#ddd", fontSize:"13px" }}>👤 {c.nombre}</div>}
+                    {c.direccion && <div style={{ color:"#999", fontSize:"12px" }}>📍 {c.direccion}{c.zona ? ` · ${c.zona}` : ""}</div>}
+                    {c.telefonoSecundario && <div style={{ color:"#888", fontSize:"12px" }}>📞 {c.telefonoSecundario}</div>}
+                    {c.avisos && <div style={{ color:"#f59e0b", fontSize:"12px", fontWeight:"bold" }}>⚠️ {c.avisos}</div>}
+                    {c.notasCliente && <div style={{ color:"#a78bfa", fontSize:"12px" }}>📝 {c.notasCliente}</div>}
+                    <div style={{ display:"flex", gap:"8px", marginTop:"4px" }}>
+                      {c.metodoPago && <span style={{ background: c.metodoPago==="EFECTIVO" ? "#14532d" : "#1e3a5f", color: c.metodoPago==="EFECTIVO" ? "#4ade80" : "#60a5fa", fontSize:"11px", padding:"2px 7px", borderRadius:"5px" }}>{c.metodoPago}</span>}
+                      {c.ultimoPedido && <span style={{ color:"#444", fontSize:"11px" }}>Último: {c.ultimoPedido}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:"6px", marginLeft:"10px" }}>
+                    <button onClick={() => setClienteEditando({...c})} style={{ background:"#1e2130", border:"1px solid #2a2f45", color:"#a78bfa", padding:"6px 10px", borderRadius:"8px", cursor:"pointer", fontSize:"13px" }}>✏️</button>
+                    <button onClick={() => {
+                      if (!confirm(`¿Eliminar a ${c.telefono}?`)) return;
+                      setClientes(prev => { const n={...prev}; delete n[c.telefono]; return n; });
+                    }} style={{ background:"#7f1d1d", border:"none", color:"#ef4444", padding:"6px 10px", borderRadius:"8px", cursor:"pointer", fontSize:"13px" }}>✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ====================
+  // 🛠️ MODO GESTIÓN
+  // ====================
+  if (modoGestion) {
+    const btnAccion = { background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"10px 4px", borderRadius:"8px", fontWeight:"bold", fontSize:"12px", cursor:"pointer", textAlign:"center", flex:1 };
+    return (
+      <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0f1117", color:"#fff", fontFamily:"system-ui,sans-serif" }}>
+
+        {/* NAV */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130", flexShrink:0 }}>
+          <button onClick={()=>{ setModoGestion(false); setModoAjustes(true); }} style={{ background:"none", border:"none", color:"#a78bfa", fontSize:"14px", cursor:"pointer" }}>← Ajustes</button>
+          <span style={{ fontWeight:"bold", fontSize:"16px" }}>🍜 Artículos</span>
+          <button onClick={volverInicio} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>🏠</button>
+        </div>
+
+        <div style={{ padding:"16px", maxWidth:"600px", margin:"0 auto", width:"100%", overflowY:"auto", flex:1 }}>
+
+          {/* BUSCADOR */}
+          <input placeholder="🔍 Buscar artículo..." value={busquedaGestion} onChange={e=>setBusquedaGestion(e.target.value)}
+            style={{ width:"100%", boxSizing:"border-box", background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"12px 14px", borderRadius:"10px", fontSize:"14px", marginBottom:"12px" }} />
+
+          {/* BOTONES ACCIÓN */}
+          <div style={{ display:"flex", gap:"6px", marginBottom:"16px" }}>
+            <button onClick={exportarArticulos} style={btnAccion}>⬇️ Exportar</button>
+            <label style={{...btnAccion, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"}}>
+              ⬆️ Importar
+              <input type="file" accept=".json,.csv,text/csv,application/json" onChange={importarArticulos} style={{ display:"none" }} />
+            </label>
+            <button onClick={()=>{
+              const ok = prompt("Escribe BORRAR para eliminar todos los artículos");
+              if(ok==="BORRAR"){ localStorage.setItem("backup_articulos",JSON.stringify(articulos)); setArticulos({}); alert("Artículos borrados (backup guardado)"); }
+            }} style={{...btnAccion, color:"#ef4444"}}>⚠️ Reset</button>
+          </div>
+
+          {/* FORMULARIO NUEVO / EDITAR */}
+          <div style={{ background:"#141720", border:"1px solid #1e2130", borderRadius:"12px", padding:"16px", marginBottom:"16px", display:"flex", flexDirection:"column", gap:"8px" }}>
+            <div style={{ fontWeight:"bold", fontSize:"14px", color:"#a78bfa", marginBottom:"4px" }}>{editando ? "✏️ Editando artículo" : "➕ Nuevo artículo"}</div>
+            <input placeholder="Referencia" value={nuevo.ref} onChange={e=>setNuevo({...nuevo, ref:e.target.value})}
+              style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"9px 12px", borderRadius:"8px", fontSize:"14px" }} />
+            <input placeholder="Nombre" value={nuevo.nombre} onChange={e=>setNuevo({...nuevo, nombre:e.target.value})}
+              style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"9px 12px", borderRadius:"8px", fontSize:"14px" }} />
+            <input placeholder="Precio" value={nuevo.precio} onChange={e=>setNuevo({...nuevo, precio:e.target.value})}
+              style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"9px 12px", borderRadius:"8px", fontSize:"14px" }} />
+            <select value={nuevo.categoria} onChange={e=>setNuevo({...nuevo, categoria:e.target.value})}
+              style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff", padding:"9px 12px", borderRadius:"8px", fontSize:"14px" }}>
+              <option value="">Categoría</option>
+              {categorias.map(c=><option key={c}>{c}</option>)}
+            </select>
+            <button onClick={guardarArticulo} style={{ background: editando ? "#7c3aed" : "#16a34a", border:"none", color:"#fff", padding:"10px", borderRadius:"8px", fontWeight:"bold", fontSize:"14px", cursor:"pointer" }}>
+              {editando ? "Actualizar" : "Guardar"}
+            </button>
+          </div>
+
+          {/* CONTADOR */}
+          <div style={{ color:"#555", fontSize:"12px", marginBottom:"10px" }}>Total: {Object.keys(articulos).length} artículos</div>
+
+          {/* LISTA ARTÍCULOS */}
+          <div style={{ background:"#141720", border:"1px solid #1e2130", borderRadius:"12px", overflow:"hidden", marginBottom:"20px" }}>
+            {Object.entries(articulos)
+              .sort((a,b) => { const nA=parseInt(a[0]), nB=parseInt(b[0]); return (!isNaN(nA)&&!isNaN(nB)) ? nA-nB : a[0].localeCompare(b[0]); })
+              .filter(([ref,a]) => a.nombre.toLowerCase().includes(busquedaGestion.toLowerCase()) || ref.includes(busquedaGestion))
+              .map(([ref,a], i, arr) => (
+                <div key={ref} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px", borderBottom: i<arr.length-1 ? "1px solid #1e2130" : "none" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                    <div style={{ background:"#1e2130", color:"#a78bfa", padding:"4px 8px", borderRadius:"6px", fontSize:"12px", fontWeight:"bold", minWidth:"38px", textAlign:"center" }}>{ref}</div>
+                    <div>
+                      <div style={{ color:"#fff", fontSize:"14px", fontWeight:"500" }}>{a.nombre}</div>
+                      <div style={{ color:"#555", fontSize:"12px" }}>{a.precio}€</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:"6px" }}>
+                    <button onClick={()=>editarArticulo(ref)} style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#a78bfa", padding:"6px 10px", borderRadius:"8px", cursor:"pointer", fontSize:"13px" }}>✏️</button>
+                    <button onClick={()=>{ if(confirm(`¿Eliminar ${a.nombre}?`)) eliminarArticulo(ref); }} style={{ background:"#7f1d1d", border:"none", color:"#ef4444", padding:"6px 10px", borderRadius:"8px", cursor:"pointer", fontSize:"13px" }}>✕</button>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // ====================
+// 🛵 PANTALLA PEDIDOS (3 columnas)
+// ====================
+if (modoPedidos) {
+  const ahora = new Date();
+  const fechaHoy = ahora.toLocaleDateString("es-ES", { day:"2-digit", month:"2-digit", year:"numeric" });
+  const horaAhora = ahora.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+
+  const todosPedidos = [
+    ...Object.entries(pedidos.llevar).map(([id, p]) => ({ id, tipo:"llevar", ...p })),
+    ...Object.entries(pedidos.recoger).map(([id, p]) => ({ id, tipo:"recoger", ...p }))
+  ];
+
+  // Pedido activo (el seleccionado en la columna izquierda)
+  const pedidoActivo = pedidoSeleccionado
+    ? (pedidoSeleccionado.tipo === "llevar" ? pedidos.llevar : pedidos.recoger)?.[pedidoSeleccionado.id]
+    : null;
+
+  const ticketActivo = pedidoActivo?.ticket || [];
+  const totalActivo = ticketActivo.reduce((s, t) => s + t.precio * t.cantidad, 0);
+  const articulosCount = ticketActivo.reduce((s, t) => s + t.cantidad, 0);
+
+  const crearNuevoPedido = (tipo) => {
+    const nuevoNumero = generarNumeroPedido(tipo);
+    setTipoPedido(tipo);
+    setPedidoNumero(nuevoNumero);
+    setTicket([]);
+    setComensales(""); setTelefono(""); setDireccion(""); setZona(""); setMetodoPago(""); setTiempo("");
+    setAvisos(""); setNotasPedido("");
+    setModoPedidos(false);
+  };
+
+  const abrirPedidoExistente = (tipo, id) => {
+    setPedidoSeleccionado({ tipo, id });
+  };
+
+  const cerrarPedidoActivo = () => {
+    if (!pedidoSeleccionado) return;
+    const msg = "¿Cerrar y cobrar este pedido?";
+    if (!confirm(msg)) return;
+    const { tipo, id } = pedidoSeleccionado;
+    const p = (tipo === "llevar" ? pedidos.llevar : pedidos.recoger)?.[id];
+
+    // 💾 Guardar/actualizar cliente si hay teléfono
+    if (p?.telefono && (tipo === "llevar" || tipo === "recoger")) {
+      setClientes(prev => ({
+        ...prev,
+        [p.telefono]: {
+          ...prev[p.telefono],
+          telefono: p.telefono,
+          telefonoSecundario: p.telefonoSecundario || prev[p.telefono]?.telefonoSecundario || "",
+          nombre: tipo === "recoger" ? (p.direccion || prev[p.telefono]?.nombre || "") : (prev[p.telefono]?.nombre || ""),
+          direccion: tipo === "llevar" ? (p.direccion || prev[p.telefono]?.direccion || "") : (prev[p.telefono]?.direccion || ""),
+          zona: tipo === "llevar" ? (p.zona || prev[p.telefono]?.zona || "") : (prev[p.telefono]?.zona || ""),
+          metodoPago: p.metodoPago || prev[p.telefono]?.metodoPago || "",
+          avisos: p.avisos || prev[p.telefono]?.avisos || "",
+          notasCliente: p.notasPedido || prev[p.telefono]?.notasCliente || "",
+          ultimoPedido: new Date().toLocaleDateString("es-ES"),
+          totalPedidos: (prev[p.telefono]?.totalPedidos || 0) + 1,
+        }
+      }));
+    }
+
+    // 🛵 Registrar entrega en pedidosEntregados si tiene repartidor
+    if (p?.repartidor && tipo === "llevar") {
+      const ticketP = p.ticket || [];
+      const totalP = ticketP.reduce((s,t)=>s+(t.precio*t.cantidad),0);
+      const horaAhora = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+      setPedidosEntregados(prev => ({
+        ...prev,
+        [p.repartidor]: [
+          ...(prev[p.repartidor] || []),
+          { id, total: totalP, hora: horaAhora, direccion: p.direccion || "", metodoPago: p.metodoPago || "" }
+        ]
+      }));
+    }
+
+    setPedidos(prev => {
+      const copia = { ...prev };
+      copia[tipo] = { ...copia[tipo] };
+      delete copia[tipo][id];
+      return copia;
+    });
+    setPedidoSeleccionado(null);
+  };
+
+  const irAEditarPedido = () => {
+    if (!pedidoSeleccionado) return;
+    setTipoPedido(pedidoSeleccionado.tipo);
+    setPedidoNumero(pedidoSeleccionado.id);
+    setModoPedidos(false);
+  };
+
+  const irACocinaActivo = () => {
+    if (!pedidoSeleccionado) return;
+    setOrigenPedidos({ tipo: pedidoSeleccionado.tipo, id: pedidoSeleccionado.id });
+    setTipoPedido(pedidoSeleccionado.tipo);
+    setPedidoNumero(pedidoSeleccionado.id);
+    setModoPedidos(false);
+    setModoCocina(true);
+  };
+
+  const irATicketActivo = () => {
+    if (!pedidoSeleccionado) return;
+    setOrigenPedidos({ tipo: pedidoSeleccionado.tipo, id: pedidoSeleccionado.id });
+    setTipoPedido(pedidoSeleccionado.tipo);
+    setPedidoNumero(pedidoSeleccionado.id);
+    setNumeroTicket(generarNumeroTicket());
+    setModoPedidos(false);
+    setModoTicket(true);
+  };
+
+  const horaEntregaActivo = pedidoActivo?.tiempo ? calcularHoraEntrega(pedidoActivo.tiempo) : "";
+  const programadoFecha = pedidoActivo?.tiempo ? `${fechaHoy} - ${pedidoActivo?.horaCreacion || horaAhora}` : "";
+
+  return (
+    <div style={{
+      display:"flex", flexDirection:"column", height:"100vh",
+      background:"#0f1117", color:"#fff", fontFamily:"system-ui, sans-serif",
+      overflow:"hidden"
+    }}>
+
+      {/* ── TOP NAV ── */}
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"0 20px", height:"56px", background:"#0f1117",
+        borderBottom:"1px solid #1e2130", flexShrink:0
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+          <button onClick={()=>setModoPedidos(false)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>☰</button>
+          <span style={{ fontWeight:"bold", fontSize:"16px" }}>Mini POS</span>
+        </div>
+
+        <div style={{ display:"flex", gap:"4px" }}>
+          {[
+            { label:"🧾 Pedidos", active:true, onClick:()=>{} },
+            { label:"⊞ Mesas", active:false, onClick:()=>{ setModoPedidos(false); setModoMesas(true); } },
+            
+            { label:"⚙️ Ajustes", active:false, onClick:()=>{ setModoPedidos(false); setModoAjustes(true); } }
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.onClick} style={{
+              background: btn.active ? "transparent" : "transparent",
+              border: "none", color: btn.active ? "#a78bfa" : "#888",
+              fontWeight: btn.active ? "bold" : "normal",
+              padding:"8px 14px", borderRadius:"8px", cursor:"pointer", fontSize:"14px",
+              borderBottom: btn.active ? "2px solid #a78bfa" : "2px solid transparent"
+            }}>{btn.label}</button>
+          ))}
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+          <span style={{ color:"#aaa", fontSize:"14px" }}>{horaAhora}</span>
+          <button onClick={()=>setModoPedidos(false)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>🏠</button>
+        </div>
+      </div>
+
+      {/* ── 3 COLUMNAS ── */}
+      <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+
+        {/* ── COL 1: LISTA PEDIDOS (2 sub-columnas) ── */}
+        <div style={{
+          width:"420px", flexShrink:0, background:"#141720",
+          borderRight:"1px solid #1e2130", display:"flex", flexDirection:"column",
+          overflow:"hidden"
+        }}>
+          {/* Cabecera y botones */}
+          <div style={{ padding:"16px 16px 8px", borderBottom:"1px solid #1e2130" }}>
+            <div style={{ fontWeight:"bold", fontSize:"16px", marginBottom:"12px" }}>Pedidos creados</div>
+            <div style={{ display:"flex", gap:"8px", marginBottom:"10px" }}>
+              <button onClick={()=>crearNuevoPedido("llevar")} style={{
+                flex:1, background:"#7c3aed", border:"none", color:"#fff",
+                padding:"10px", borderRadius:"10px", fontWeight:"bold", cursor:"pointer", fontSize:"13px"
+              }}>🛍 LLEVAR</button>
+              <button onClick={()=>crearNuevoPedido("recoger")} style={{
+                flex:1, background:"#ea6c00", border:"none", color:"#fff",
+                padding:"10px", borderRadius:"10px", fontWeight:"bold", cursor:"pointer", fontSize:"13px"
+              }}>🚶 RECOGER</button>
+            </div>
+          </div>
+
+          {/* Dos sub-columnas */}
+          <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+
+            {/* Sub-col LLEVAR */}
+            <div style={{ flex:1, borderRight:"1px solid #1e2130", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+              <div style={{ padding:"8px 10px 6px", borderBottom:"1px solid #1e2130" }}>
+                <span style={{ fontSize:"11px", fontWeight:"bold", color:"#a78bfa", letterSpacing:"1px" }}>🛍 LLEVAR</span>
+                <span style={{ fontSize:"11px", color:"#555", marginLeft:"6px" }}>({Object.keys(pedidos.llevar).length})</span>
+                <button onClick={()=>crearNuevoPedido("llevar")} style={{
+                  float:"right", background:"none", border:"1px dashed #3a2f6a", color:"#7c3aed",
+                  borderRadius:"6px", padding:"1px 7px", fontSize:"11px", cursor:"pointer"
+                }}>+ nuevo</button>
+              </div>
+              <div style={{ overflowY:"auto", flex:1, padding:"6px 8px", display:"flex", flexDirection:"column", gap:"5px" }}>
+                {Object.entries(pedidos.llevar).length === 0 && (
+                  <div style={{ textAlign:"center", color:"#444", padding:"20px 0", fontSize:"12px" }}>Sin pedidos</div>
+                )}
+                {Object.entries(pedidos.llevar).map(([id, p]) => {
+                  const isSelected = pedidoSeleccionado?.id === id && pedidoSeleccionado?.tipo === "llevar";
+                  const subtotal = (p.ticket || []).reduce((s,t) => s+t.precio*t.cantidad, 0);
+                  return (
+                    <div key={id} onClick={() => abrirPedidoExistente("llevar", id)} style={{
+                      background: isSelected ? "#1a1f35" : "#1a1d2a",
+                      border: isSelected ? "1.5px solid #7c3aed" : "1.5px solid #1e2130",
+                      borderRadius:"10px", padding:"10px 11px", cursor:"pointer", transition:"all 0.15s"
+                    }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize:"13px", fontWeight:"bold", color:"#a78bfa" }}>
+                          {id.replace(/^LLEVAR\s*/, "")}
+                        </span>
+                        <span style={{ color:"#888", fontSize:"11px" }}>{p.horaCreacion || horaAhora}</span>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:"4px" }}>
+                        <span style={{ color:"#ccc", fontSize:"11px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"80px" }}>
+                          {p.telefono || p.direccion || "—"}
+                        </span>
+                        <span style={{ fontWeight:"bold", fontSize:"12px" }}>{subtotal.toFixed(2)}€</span>
+                      </div>
+                      {p.repartidor && (
+                        <div style={{ marginTop:"4px" }}>
+                          <span style={{ background:"#1d4ed8", color:"#fff", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"bold" }}>
+                            🛵 {p.repartidor}
+                          </span>
+                        </div>
+                      )}
+                      {p.metodoPago && (
+                        <div style={{ marginTop:"4px" }}>
+                          <span style={{
+                            background: p.metodoPago === "EFECTIVO" ? "#16a34a" : "#1d4ed8",
+                            color:"#fff", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"bold"
+                          }}>{p.metodoPago}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sub-col RECOGER */}
+            <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+              <div style={{ padding:"8px 10px 6px", borderBottom:"1px solid #1e2130" }}>
+                <span style={{ fontSize:"11px", fontWeight:"bold", color:"#fb923c", letterSpacing:"1px" }}>🚶 RECOGER</span>
+                <span style={{ fontSize:"11px", color:"#555", marginLeft:"6px" }}>({Object.keys(pedidos.recoger).length})</span>
+                <button onClick={()=>crearNuevoPedido("recoger")} style={{
+                  float:"right", background:"none", border:"1px dashed #6a3500", color:"#ea6c00",
+                  borderRadius:"6px", padding:"1px 7px", fontSize:"11px", cursor:"pointer"
+                }}>+ nuevo</button>
+              </div>
+              <div style={{ overflowY:"auto", flex:1, padding:"6px 8px", display:"flex", flexDirection:"column", gap:"5px" }}>
+                {Object.entries(pedidos.recoger).length === 0 && (
+                  <div style={{ textAlign:"center", color:"#444", padding:"20px 0", fontSize:"12px" }}>Sin pedidos</div>
+                )}
+                {Object.entries(pedidos.recoger).map(([id, p]) => {
+                  const isSelected = pedidoSeleccionado?.id === id && pedidoSeleccionado?.tipo === "recoger";
+                  const subtotal = (p.ticket || []).reduce((s,t) => s+t.precio*t.cantidad, 0);
+                  return (
+                    <div key={id} onClick={() => abrirPedidoExistente("recoger", id)} style={{
+                      background: isSelected ? "#251800" : "#1a1d2a",
+                      border: isSelected ? "1.5px solid #ea6c00" : "1.5px solid #1e2130",
+                      borderRadius:"10px", padding:"10px 11px", cursor:"pointer", transition:"all 0.15s"
+                    }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize:"13px", fontWeight:"bold", color:"#fb923c" }}>
+                          {id.replace(/^RECOGER\s*/, "")}
+                        </span>
+                        <span style={{ color:"#888", fontSize:"11px" }}>{p.horaCreacion || horaAhora}</span>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:"4px" }}>
+                        <span style={{ color:"#ccc", fontSize:"11px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"80px" }}>
+                          {p.telefono || p.direccion || "—"}
+                        </span>
+                        <span style={{ fontWeight:"bold", fontSize:"12px" }}>{subtotal.toFixed(2)}€</span>
+                      </div>
+                      {p.metodoPago && (
+                        <div style={{ marginTop:"4px" }}>
+                          <span style={{
+                            background: p.metodoPago === "EFECTIVO" ? "#16a34a" : "#1d4ed8",
+                            color:"#fff", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"bold"
+                          }}>{p.metodoPago}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── COL 2: DETALLE PEDIDO ── */}
+        <div style={{
+          flex:1, background:"#141720", borderRight:"1px solid #1e2130",
+          display:"flex", flexDirection:"column", overflow:"hidden"
+        }}>
+          {!pedidoSeleccionado ? (
+            <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", color:"#444", fontSize:"15px" }}>
+              Selecciona un pedido
+            </div>
+          ) : (
+            <>
+              {/* HEADER DEL PEDIDO */}
+              <div style={{
+                padding:"16px 20px", borderBottom:"1px solid #1e2130",
+                display:"flex", justifyContent:"space-between", alignItems:"flex-start"
+              }}>
+                <div>
+                  <div style={{ fontSize:"18px", fontWeight:"bold" }}>
+                    <span style={{ color: pedidoSeleccionado.tipo === "llevar" ? "#a78bfa" : "#fb923c" }}>
+                      {pedidoSeleccionado.id}
+                    </span>
+                    {pedidoActivo?.telefono && (
+                      <span style={{ color:"#aaa", fontWeight:"normal", fontSize:"16px" }}>
+                        {" "}– {pedidoActivo.telefono}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ color:"#666", fontSize:"13px", marginTop:"2px" }}>
+                    Creado a las {pedidoActivo?.horaCreacion || horaAhora}
+                  </div>
+                </div>
+                <button onClick={irACocinaActivo} style={{
+                  background:"#1e2130", border:"1px solid #333", color:"#fff",
+                  padding:"8px 16px", borderRadius:"8px", cursor:"pointer", fontSize:"13px",
+                  display:"flex", alignItems:"center", gap:"6px"
+                }}>🍳 Cocina</button>
+              </div>
+
+              {/* ARTÍCULOS */}
+              <div style={{ flex:1, overflowY:"auto", padding:"0 20px" }}>
+                <div style={{ fontWeight:"bold", fontSize:"15px", padding:"14px 0 8px" }}>Detalles del pedido</div>
+                <div style={{ background:"#1a1d2a", borderRadius:"12px", overflow:"hidden" }}>
+                  {ticketActivo.length === 0 && (
+                    <div style={{ textAlign:"center", color:"#555", padding:"24px", fontSize:"13px" }}>
+                      Sin artículos
+                    </div>
+                  )}
+                  {ticketActivo.filter(t => !t.esHijoMenu).map((t, i) => (
+                    <div key={i} style={{
+                      display:"flex", justifyContent:"space-between", alignItems:"center",
+                      padding:"14px 16px", borderBottom:"1px solid #1e2130"
+                    }}>
+                      <div style={{ display:"flex", gap:"10px", alignItems:"flex-start" }}>
+                        <span style={{ color:"#888", minWidth:"20px" }}>{t.cantidad}</span>
+                        <div>
+                          <div style={{ fontSize:"14px" }}>{t.nombre}</div>
+                          {t.nota && <div style={{ color:"#888", fontSize:"12px" }}>{t.nota}</div>}
+                          {(t.gluten||t.verdura||t.carne||t.huevo||t.marisco||t.frutossecos) && (
+                            <div style={{ color:"#f59e0b", fontSize:"11px" }}>
+                              {[t.gluten&&"SIN GLUTEN",t.verdura&&"NO VERDURA",t.carne&&"NO CARNE",t.huevo&&"NO HUEVO",t.marisco&&"ALERGIA MARISCO",t.frutossecos&&"ALERGIA F.SECOS"].filter(Boolean).join(" / ")}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <span style={{ fontWeight:"bold", fontSize:"14px" }}>{(t.precio*t.cantidad).toFixed(2)} €</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* TOTAL */}
+                <div style={{
+                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                  padding:"16px 0", borderTop:"1px solid #1e2130", marginTop:"8px"
+                }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                    <span style={{ fontWeight:"bold", fontSize:"16px" }}>Total</span>
+                    <span style={{
+                      background:"#1e2130", color:"#aaa", fontSize:"12px",
+                      padding:"3px 10px", borderRadius:"20px"
+                    }}>{articulosCount} artículo{articulosCount !== 1 ? "s" : ""}</span>
+                  </div>
+                  <span style={{ fontWeight:"bold", fontSize:"22px" }}>{totalActivo.toFixed(2)} €</span>
+                </div>
+              </div>
+
+              {/* BOTONES INFERIORES */}
+              <div style={{ padding:"12px 20px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
+                <button onClick={irAEditarPedido} style={{
+                  width:"100%", background:"linear-gradient(135deg,#7c3aed,#6d28d9)",
+                  border:"none", color:"#fff", padding:"14px", borderRadius:"12px",
+                  fontWeight:"bold", fontSize:"16px", cursor:"pointer",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:"8px"
+                }}>💳 Cobrar</button>
+                <div style={{ display:"flex", gap:"8px" }}>
+                  <button onClick={irACocinaActivo} style={{
+                    flex:1, background:"linear-gradient(135deg,#ea580c,#c2410c)",
+                    border:"none", color:"#fff", padding:"12px", borderRadius:"12px",
+                    fontWeight:"bold", fontSize:"14px", cursor:"pointer"
+                  }}>🍳 Comandar</button>
+                  <button onClick={irATicketActivo} style={{
+                    flex:1, background:"linear-gradient(135deg,#ca8a04,#a16207)",
+                    border:"none", color:"#fff", padding:"12px", borderRadius:"12px",
+                    fontWeight:"bold", fontSize:"14px", cursor:"pointer"
+                  }}>🧾 Ticket</button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── COL 3: INFO PEDIDO + CLIENTE ── */}
+        <div style={{
+          width:"280px", flexShrink:0, background:"#141720",
+          overflowY:"auto", padding:"16px"
+        }}>
+          {!pedidoSeleccionado ? (
+            <div style={{ color:"#444", fontSize:"13px", textAlign:"center", paddingTop:"40px" }}>
+              Selecciona un pedido para ver los detalles
+            </div>
+          ) : (
+            <>
+              {/* INFO PEDIDO */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+                <span style={{ fontWeight:"bold", fontSize:"15px" }}>Información del pedido</span>
+                <button onClick={irAEditarPedido} style={{ background:"none", border:"none", color:"#a78bfa", fontSize:"18px", cursor:"pointer" }}>✏️</button>
+              </div>
+
+              {pedidoActivo?.tiempo && (
+                <div style={{ marginBottom:"12px" }}>
+                  <div style={{ color:"#666", fontSize:"11px", marginBottom:"2px" }}>Programado</div>
+                  <div style={{ color:"#ddd", fontSize:"13px" }}>{programadoFecha}</div>
+                </div>
+              )}
+
+              {horaEntregaActivo && (
+                <div style={{ marginBottom:"12px" }}>
+                  <div style={{ color:"#666", fontSize:"11px", marginBottom:"2px" }}>
+                    {pedidoSeleccionado?.tipo === "llevar" ? "🛵 Hora de entrega" : "🚶 Hora de recogida"}
+                  </div>
+                  <div style={{ color:"#ddd", fontSize:"13px" }}>{horaEntregaActivo}</div>
+                </div>
+              )}
+
+              {pedidoActivo?.tiempo && (
+                <div style={{ marginBottom:"12px" }}>
+                  <div style={{ color:"#666", fontSize:"11px", marginBottom:"2px" }}>Tiempo estimado</div>
+                  <div style={{ color:"#ddd", fontSize:"13px" }}>{pedidoActivo.tiempo}</div>
+                </div>
+              )}
+
+              {(pedidoActivo?.direccion || pedidoActivo?.zona) && (
+                <div style={{ marginBottom:"16px" }}>
+                  <div style={{ color:"#666", fontSize:"11px", marginBottom:"2px" }}>
+                    {pedidoSeleccionado?.tipo === "recoger" ? "Nombre" : "Dirección"}
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                    <div style={{ color:"#ddd", fontSize:"13px", flex:1 }}>
+                      {pedidoActivo.direccion}{pedidoSeleccionado?.tipo !== "recoger" && pedidoActivo.zona ? ` – ${pedidoActivo.zona}` : ""}
+                    </div>
+                    <span style={{ color:"#a78bfa", fontSize:"16px", marginLeft:"8px" }}>
+                      {pedidoSeleccionado?.tipo === "recoger" ? "👤" : "📍"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ borderTop:"1px solid #1e2130", paddingTop:"16px", marginBottom:"14px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px" }}>
+                  <span style={{ fontWeight:"bold", fontSize:"15px" }}>Información del cliente</span>
+                  <span style={{ color:"#a78bfa", fontSize:"18px" }}>👤</span>
+                </div>
+
+                {pedidoActivo?.telefono && (
+                  <>
+                    {pedidoSeleccionado?.tipo === "recoger" && pedidoActivo?.direccion && (
+                      <div style={{ marginBottom:"10px" }}>
+                        <div style={{ color:"#666", fontSize:"11px", marginBottom:"2px" }}>Nombre del cliente</div>
+                        <div style={{ color:"#ddd", fontSize:"13px" }}>{pedidoActivo.direccion}</div>
+                      </div>
+                    )}
+                    <div style={{ marginBottom:"12px" }}>
+                      <div style={{ color:"#666", fontSize:"11px", marginBottom:"2px" }}>Teléfono del cliente</div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ color:"#ddd", fontSize:"13px" }}>{pedidoActivo.telefono}</span>
+                        <span style={{ color:"#a78bfa", fontSize:"16px" }}>📞</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {pedidoActivo?.metodoPago && (
+                  <div style={{ marginBottom:"16px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                        <span style={{ color:"#a78bfa", fontSize:"16px" }}>💳</span>
+                        <span style={{ color:"#ddd", fontSize:"13px" }}>Método de pago</span>
+                      </div>
+                      <span style={{
+                        background: pedidoActivo.metodoPago === "EFECTIVO" ? "#16a34a" : "#1d4ed8",
+                        color:"#fff", fontSize:"11px", padding:"3px 9px",
+                        borderRadius:"5px", fontWeight:"bold"
+                      }}>{pedidoActivo.metodoPago}</span>
+                    </div>
+                  </div>
+                )}
+                {pedidoActivo?.avisos && (
+                  <div style={{ marginBottom:"10px", background:"#292200", border:"1px solid #f59e0b", borderRadius:"8px", padding:"8px 10px" }}>
+                    <span style={{ color:"#f59e0b", fontSize:"13px", fontWeight:"bold" }}>⚠️ {pedidoActivo.avisos}</span>
+                  </div>
+                )}
+                {pedidoActivo?.notasPedido && (
+                  <div style={{ marginBottom:"10px", background:"#1a1535", border:"1px solid #7c3aed", borderRadius:"8px", padding:"8px 10px" }}>
+                    <span style={{ color:"#a78bfa", fontSize:"13px" }}>📝 {pedidoActivo.notasPedido}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ASIGNAR REPARTIDOR — solo para llevar */}
+              {pedidoSeleccionado?.tipo === "llevar" && (
+                <div style={{ marginBottom:"16px", borderTop:"1px solid #1e2130", paddingTop:"16px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+                    <span style={{ fontWeight:"bold", fontSize:"15px" }}>🛵 Repartidor</span>
+                    {pedidoActivo?.repartidor && (
+                      <span style={{ background:"#1d4ed8", color:"#fff", fontSize:"11px", padding:"3px 9px", borderRadius:"5px", fontWeight:"bold" }}>
+                        {pedidoActivo.repartidor}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                    {repartidores.map(rep => (
+                      <button key={rep} onClick={() => {
+                        const { tipo, id } = pedidoSeleccionado;
+                        setPedidos(prev => ({
+                          ...prev,
+                          [tipo]: {
+                            ...prev[tipo],
+                            [id]: { ...prev[tipo][id], repartidor: pedidoActivo?.repartidor === rep ? "" : rep }
+                          }
+                        }));
+                      }} style={{
+                        background: pedidoActivo?.repartidor === rep ? "#1d4ed8" : "#1a1d2a",
+                        border: pedidoActivo?.repartidor === rep ? "1.5px solid #3b82f6" : "1.5px solid #2a2f45",
+                        color: pedidoActivo?.repartidor === rep ? "#fff" : "#aaa",
+                        padding:"9px 12px", borderRadius:"8px", cursor:"pointer",
+                        fontWeight:"bold", fontSize:"13px", textAlign:"left",
+                        display:"flex", alignItems:"center", gap:"8px"
+                      }}>
+                        <span>{pedidoActivo?.repartidor === rep ? "✅" : "🛵"}</span>
+                        <span>{rep}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CANCELAR */}
+              <button onClick={cerrarPedidoActivo} style={{
+                width:"100%", background:"linear-gradient(135deg,#16a34a,#15803d)",
+                border:"none", color:"#fff",
+                padding:"12px", borderRadius:"10px", fontWeight:"bold",
+                fontSize:"14px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px"
+              }}>✅ Cerrar pedido</button>
+            </>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ====================
+// 🍽️ PANTALLA MESAS (visual)
+// ====================
+if (modoMesas) {
+  const ahora = new Date();
+  const horaAhora = ahora.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+
+  const abrirMesa = (n) => { setTipoPedido("comer"); setPedidoNumero(String(n)); setModoMesas(false); };
+  const ocp = (n) => !!pedidos.salon[n];
+
+  // ── Mesa PRINCIPAL ──
+  const M = (n, circle=false, w=72, h=54) => {
+    const ok = ocp(n);
+    return (
+      <div onClick={() => abrirMesa(n)} style={{
+        width:w, height:h, display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center", cursor:"pointer",
+        background: ok ? "linear-gradient(145deg,#f97316,#ea580c)" : "#1c2035",
+        border: ok ? "1.5px solid #fb923c" : "1.5px solid #2a3050",
+        borderRadius: circle ? "50%" : "10px",
+        boxShadow: ok ? "0 0 14px rgba(249,115,22,0.45)" : "inset 0 1px 0 rgba(255,255,255,0.04)",
+        transition:"all 0.15s", userSelect:"none", flexShrink:0
+      }}>
+        <span style={{ fontSize: circle?"17px":"14px", fontWeight:"700", color: ok?"#fff":"#c8d0e8", letterSpacing:"0.5px" }}>{n}</span>
+        <span style={{ fontSize:"9px", color: ok?"#fed7aa":"#3d4a6b", marginTop:"2px", letterSpacing:"0.5px" }}>{ok?"Ocupada":"Libre"}</span>
+      </div>
+    );
+  };
+
+  // ── Mesa AUXILIAR pequeña ──
+  const A = (n, w=44, h=40) => {
+    const ok = ocp(n);
+    return (
+      <div onClick={() => abrirMesa(n)} style={{
+        width:w, height:h, display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        cursor:"pointer", background: ok ? "linear-gradient(145deg,#f97316,#ea580c)" : "#1c2035",
+        border: ok ? "1.5px solid #fb923c" : "1.5px solid #2a3050",
+        borderRadius:"8px", userSelect:"none", flexShrink:0,
+        boxShadow: ok ? "0 0 10px rgba(249,115,22,0.4)" : "inset 0 1px 0 rgba(255,255,255,0.04)"
+      }}>
+        <span style={{ fontSize:"12px", fontWeight:"600", color: ok?"#fff":"#c8d0e8" }}>{n}</span>
+        <span style={{ fontSize:"8px", color: ok?"#fed7aa":"#3d4a6b", marginTop:"1px" }}>{ok?"Ocp":"—"}</span>
+      </div>
+    );
+  };
+
+  // ── Separador (muro / pasillo) ──
+  const Sep = ({ w=80, vertical=false }) => (
+    <div style={{
+      width: vertical ? 3 : w, height: vertical ? 80 : 3,
+      background:"#2a3050", borderRadius:2,
+      flexShrink:0, alignSelf:"center"
+    }} />
+  );
+
+  // ── Etiqueta de zona ──
+  const ZL = ({ txt }) => (
+    <div style={{ fontSize:"10px", color:"#94a3b8", letterSpacing:"2px", fontWeight:"700", textTransform:"uppercase", marginBottom:"6px" }}>{txt}</div>
+  );
+
+  const tabActivo = seccionActiva === "interior" ? "interior" : "principal";
+
+  // ── NAV compartido ──
+  const NavBar = () => (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130", flexShrink:0 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+        <button onClick={()=>setModoMesas(false)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>☰</button>
+        <span style={{ fontWeight:"bold", fontSize:"16px", color:"#fff" }}>Mini POS</span>
+      </div>
+      <div style={{ display:"flex", gap:"4px" }}>
+        {[
+          { label:"🧾 Pedidos", active:false, onClick:()=>{ setModoMesas(false); setModoPedidos(true); setPedidoSeleccionado(null); } },
+          { label:"⊞ Mesas", active:true, onClick:()=>{} },
+          
+          { label:"⚙️ Ajustes", active:false, onClick:()=>{ setModoMesas(false); setModoAjustes(true); } }
+        ].map(btn => (
+          <button key={btn.label} onClick={btn.onClick} style={{
+            background:"transparent", border:"none",
+            color: btn.active ? "#a78bfa" : "#888",
+            fontWeight: btn.active ? "bold" : "normal",
+            padding:"8px 14px", borderRadius:"8px", cursor:"pointer", fontSize:"14px",
+            borderBottom: btn.active ? "2px solid #a78bfa" : "2px solid transparent"
+          }}>{btn.label}</button>
+        ))}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+        <span style={{ color:"#aaa", fontSize:"14px" }}>{horaAhora}</span>
+        <button onClick={()=>setModoMesas(false)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>🏠</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:"#0f1117", color:"#fff", fontFamily:"system-ui,sans-serif", overflow:"hidden" }}>
+
+      <NavBar />
+
+      {/* ── TABS ── */}
+      <div style={{ display:"flex", padding:"0 24px", background:"#0f1117", borderBottom:"1px solid #1e2130", flexShrink:0 }}>
+        {[["principal","Sala Principal"],["interior","Sala Interior"]].map(([key,label]) => (
+          <button key={key} onClick={()=>setSeccionActiva(key)} style={{
+            background:"transparent", border:"none", cursor:"pointer",
+            padding:"13px 20px 11px", fontWeight:"600", fontSize:"13px",
+            color: tabActivo===key ? "#fff" : "#555",
+            borderBottom: tabActivo===key ? "2px solid #a78bfa" : "2px solid transparent",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ── CONTENIDO ── */}
+      <div style={{ flex:1, overflowY:"auto", padding:"16px", display:"flex", justifyContent:"center", alignItems:"flex-start" }}>
+
+        {/* ════ SALA PRINCIPAL ════ */}
+        {tabActivo === "principal" && (
+          <div style={{ background:"#0d1020", border:"1px solid #1a2040", borderRadius:"16px", padding:"16px 20px", display:"inline-flex", flexDirection:"column", gap:"0" }}>
+
+            {/* ENTRADA — línea completa arriba centrada */}
+            <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+              <div style={{ flex:1, height:"1px", background:"#2a3050" }} />
+              <span style={{ color:"#94a3b8", fontSize:"10px", letterSpacing:"3px", fontWeight:"700" }}>ENTRADA</span>
+              <div style={{ flex:1, height:"1px", background:"#2a3050" }} />
+            </div>
+
+            {/* ZONA MESAS — layout con posicionamiento relativo */}
+            <div style={{ display:"flex", gap:"20px", alignItems:"flex-start" }}>
+
+              {/* ── COL A: 2, 3, [sep pared], 4, 5, [pilar], 7 ── */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                {M(2, false, 76, 56)}
+                {M(3, false, 76, 56)}
+                {/* separador horizontal — pared */}
+                <div style={{ width:"76px", height:"3px", background:"#2a3050", borderRadius:2 }} />
+                {M(4, false, 76, 56)}
+                {M(5, false, 76, 56)}
+                {/* pilar */}
+                <div style={{ width:"28px", height:"26px", background:"#131726", border:"1px solid #1e2440", borderRadius:"4px" }} />
+                {M(7, false, 76, 56)}
+              </div>
+
+              {/* ── COL B: offset — 9, 10 sin sep entre ellas, [sep pared entre 10 y 11], 11, 12, 13, 14 ── */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"10px", alignItems:"flex-start", marginTop:"66px" }}>
+                {M(9, false, 66, 52)}
+                {A(10, 66, 34)}
+                {/* sep — pared entre 10 y 11 */}
+                <div style={{ width:"66px", height:"3px", background:"#2a3050", borderRadius:2 }} />
+                {M(11, false, 66, 52)}
+                {A(12, 66, 34)}
+                {M(13, false, 66, 52)}
+                {A(14, 66, 34)}
+              </div>
+
+              {/* ── COL C: 8 círculo arriba, luego 15-18 alineadas derecha, fila [20+19] ── */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"0px", alignItems:"flex-end" }}>
+                {/* 8 alineado a la derecha */}
+                <div style={{ marginBottom:"10px" }}>
+                  {M(8, true, 72, 72)}
+                </div>
+                {/* 15-18 alineadas a la derecha igual que 19 */}
+                <div style={{ marginBottom:"8px" }}>{M(15, false, 68, 50)}</div>
+                <div style={{ marginBottom:"8px" }}>{M(16, false, 68, 50)}</div>
+                <div style={{ marginBottom:"8px" }}>{M(17, false, 68, 50)}</div>
+                <div style={{ marginBottom:"10px" }}>{M(18, false, 68, 50)}</div>
+                <div style={{ display:"flex", gap:"10px", alignItems:"center" }}>
+                  {A(20, 44, 50)}
+                  {M(19, false, 68, 50)}
+                </div>
+                {/* sep horizontal abajo — pared */}
+                <div style={{ width:"122px", height:"3px", background:"#2a3050", borderRadius:2, marginTop:"8px" }} />
+              </div>
+
+            </div>
+
+            {/* BARRA — forma L, esquina inferior izquierda */}
+            <div style={{ marginTop:"24px", position:"relative", width:"220px", height:"70px" }}>
+              {/* parte horizontal */}
+              <div style={{
+                position:"absolute", left:0, top:0,
+                width:"160px", height:"44px",
+                background:"#161b30", border:"1px solid #252d4a",
+                borderRadius:"10px 10px 0 0",
+                display:"flex", alignItems:"center", paddingLeft:"16px"
+              }}>
+                <span style={{ color:"#94a3b8", fontSize:"10px", letterSpacing:"3px", fontWeight:"700" }}>BARRA</span>
+              </div>
+              {/* parte vertical (bajada L) */}
+              <div style={{
+                position:"absolute", left:0, top:"44px",
+                width:"100px", height:"26px",
+                background:"#161b30", border:"1px solid #252d4a",
+                borderTop:"none", borderRadius:"0 0 0 8px"
+              }} />
+              {/* esquina interior curva */}
+              <div style={{
+                position:"absolute", left:"100px", top:"44px",
+                width:"60px", height:"26px",
+                background:"#0f1117"
+              }} />
+            </div>
+
+          </div>
+        )}
+
+        {/* ════ SALA INTERIOR ════ */}
+        {tabActivo === "interior" && (
+          <div style={{ background:"#0d1020", border:"1px solid #1a2040", borderRadius:"16px", padding:"16px 20px", display:"inline-flex", flexDirection:"column" }}>
+
+            {/* cabeceras zona */}
+            <div style={{ display:"flex", gap:"48px", marginBottom:"12px", paddingLeft:"8px" }}>
+              <div style={{ width:"80px", textAlign:"center" }}>
+                <ZL txt="Zona A" />
+              </div>
+              <div style={{ width:"140px", textAlign:"center" }}>
+                <ZL txt="Zona B" />
+              </div>
+            </div>
+
+            {/* 2 columnas */}
+            <div style={{ display:"flex", gap:"48px", alignItems:"flex-start" }}>
+
+              {/* ── ZONA A: 21, [espacio], 22(aux), 23(aux), [espacio], fila[24 + 124] ── */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                {M(21, false, 80, 60)}
+                <div style={{ height:"6px" }} />
+                {A(22, 80, 44)}
+                {A(23, 80, 44)}
+                <div style={{ height:"6px" }} />
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  {M(24, false, 68, 54)}
+                  {A(124, 44, 54)}
+                </div>
+              </div>
+
+              {/* ── ZONA B: [125+25], [espacio], [126+26], [espacio grande], 27 ── */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  {A(125, 44, 52)}
+                  {M(25, false, 80, 52)}
+                </div>
+                <div style={{ height:"6px" }} />
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  {A(126, 44, 52)}
+                  {M(26, false, 80, 52)}
+                </div>
+                <div style={{ height:"20px" }} />
+                {/* 27 alineado a la derecha */}
+                <div style={{ display:"flex", justifyContent:"flex-end" }}>
+                  {M(27, false, 80, 64)}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+  
+// ====================
+// 🧾 APP NORMAL
+// ====================
+
+// Estilos compartidos oscuros
+const darkInput = {
+  background:"#1a1d2a", border:"1px solid #2a2f45", color:"#fff",
+  borderRadius:"8px", padding:"10px 12px", fontSize:"14px", outline:"none", width:"100%", boxSizing:"border-box"
+};
+const darkSelect = { ...darkInput };
+const darkBtn = (bg, col="#fff") => ({
+  background:bg, border:"none", color:col, borderRadius:"8px",
+  padding:"11px 0", fontWeight:"bold", fontSize:"14px", cursor:"pointer", width:"100%"
+});
+
+return (
+  <div style={{ background:"#0f1117", minHeight:"100vh", color:"#fff", fontFamily:"system-ui,sans-serif" }}>
+
+   {/* ── HEADER ── */}
+<div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px", height:"56px", background:"#0f1117", borderBottom:"1px solid #1e2130", position:"sticky", top:0, zIndex:40 }}>
+
+  <button onClick={() => setMenuAbierto(true)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"20px", cursor:"pointer" }}>☰</button>
+
+  <button onClick={() => { setModoMesas(false); setModoCocina(false); setModoTicket(false); setModoGestion(false); setMenuAbierto(false); }} style={{ background:"none", border:"none", color:"#aaa", fontSize:"18px", cursor:"pointer" }}>🏠</button>
+
+  <span style={{ fontWeight:"bold", fontSize:"16px" }}>Mini POS</span>
+
+  <button onClick={() => { setModoPedidos(true); setPedidoSeleccionado(null); }} style={{ background:"none", border:"none", color:"#aaa", fontSize:"18px", cursor:"pointer" }}>🛵</button>
+
+  <button onClick={() => setModoAjustes(true)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"18px", cursor:"pointer" }}>⚙️</button>
+
+</div>
+
+    {/* ── MENU LATERAL ── */}
+    <div style={{
+      position:"fixed", top:0, left:0, width:"240px", height:"100%",
+      background:"#141720", zIndex:50, transform: menuAbierto ? "translateX(0)" : "translateX(-100%)",
+      transition:"transform 0.25s ease", overflowY:"auto", borderRight:"1px solid #1e2130"
+    }}>
+      <div style={{ padding:"16px", fontWeight:"bold", borderBottom:"1px solid #1e2130", color:"#fff" }}>Categorías</div>
+      {categorias.map(c => (
+        <button key={c} onClick={() => { setCategoriaActiva(c); setMenuAbierto(false); }} style={{
+          display:"block", width:"100%", textAlign:"left", padding:"12px 16px", background: categoriaActiva === c ? "#7c3aed" : "transparent",
+          border:"none", color: categoriaActiva === c ? "#fff" : "#aaa", cursor:"pointer", fontSize:"14px",
+          borderBottom:"1px solid #1e2130"
+        }}>{c}</button>
+      ))}
+    </div>
+    {menuAbierto && <div onClick={()=>setMenuAbierto(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:49 }} />}
+
+  {/* LAYOUT 2 COLUMNAS */}
+  <div style={{ display:"flex", gap:"0", maxWidth:"900px", margin:"0 auto", minHeight:"calc(100vh - 56px)" }}>
+
+  {/* COLUMNA IZQUIERDA */}
+  <div style={{ flex:1, padding:"16px", minWidth:0 }}>
+
+    {/* TIPO PEDIDO */}
+    <div style={{ display:"flex", gap:"8px", marginBottom:"12px" }}>
+      {[["comer","🍽️ Comer"],["llevar","🥡 Llevar"],["recoger","🚶 Recoger"]].map(([t,l])=>(
+        <button key={t} onClick={()=>setTipoPedido(t)} style={{
+          flex:1, padding:"9px 0", borderRadius:"8px", fontWeight:"bold", fontSize:"13px", cursor:"pointer",
+          background: tipoPedido===t ? "#7c3aed" : "#1a1d2a",
+          border: tipoPedido===t ? "none" : "1px solid #2a2f45",
+          color: tipoPedido===t ? "#fff" : "#888"
+        }}>{l}</button>
+      ))}
+    </div>
+
+    {/* MESA / NÚMERO PEDIDO  +  COMENSALES (solo comer) */}
+    <div style={{ display:"flex", gap:"8px", marginBottom:"12px" }}>
+      <input
+        placeholder={tipoPedido === "comer" ? "Mesa" : "Nº Pedido"}
+        value={pedidoNumero}
+        onChange={e=>setPedidoNumero(e.target.value)}
+        style={{...darkInput, flex:1}}
+      />
+      {tipoPedido === "comer" && (
+        <input placeholder="Comensales" value={comensales} onChange={e=>setComensales(e.target.value)} style={{...darkInput, flex:1}} />
+      )}
+    </div>
+
+    {/* BÚSQUEDA */}
+    <input value={busqueda} onChange={e=>setBusqueda(e.target.value)} onKeyDown={(e)=>{ if(e.key==="Enter"){agregarArticulo(busqueda); setBusqueda("");}}} placeholder="Referencia..." style={{...darkInput, marginBottom:"12px"}} />
+
+    {/* LISTA CATEGORÍA */}
+    {categoriaActiva && (
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+        <span style={{ fontWeight:"bold", color:"#c4cae0" }}>{categoriaActiva}</span>
+        <button onClick={() => setListaAbierta(!listaAbierta)} style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#aaa", padding:"4px 10px", borderRadius:"6px", cursor:"pointer", fontSize:"12px" }}>
+          {listaAbierta ? "▲ Ocultar" : "▼ Mostrar"}
+        </button>
+      </div>
+    )}
+    {lista.length > 0 && listaAbierta && (
+      <div style={{ background:"#1a1d2a", border:"1px solid #2a2f45", borderRadius:"10px", overflow:"hidden", marginBottom:"12px" }}>
+        {lista.map(([ref, a]) => (
+          <div key={ref} onClick={() => agregarArticulo(ref)} style={{
+            display:"grid", gridTemplateColumns:"56px 1fr auto",
+            alignItems:"center", padding:"10px 14px", borderBottom:"1px solid #252840", cursor:"pointer"
+          }}>
+            <span style={{ fontWeight:"bold", color:"#a78bfa", fontSize:"13px" }}>{ref}</span>
+            <span style={{ color:"#ccc", fontSize:"13px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{a.nombre}</span>
+            <span style={{ color:"#888", fontSize:"13px", fontFamily:"monospace" }}>{a.precio}€</span>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* CAMPOS LLEVAR / RECOGER */}
+    {(tipoPedido === "llevar" || tipoPedido === "recoger") && (
+      <div style={{ display:"flex", flexDirection:"column", gap:"8px", marginBottom:"12px" }}>
+        <div style={{ display:"flex", gap:"8px" }}>
+          <input
+            placeholder={tipoPedido === "recoger" ? "👤 Nombre" : "📍 Dirección"}
+            value={direccion}
+            onChange={e=>setDireccion(e.target.value)}
+            style={{...darkInput, flex: tipoPedido === "recoger" ? 1 : 2}}
+          />
+          {tipoPedido === "llevar" && (
+            <select value={zona} onChange={e=>setZona(e.target.value)} style={{...darkSelect, flex:1}}>
+              <option value="">Zona</option>
+              <option>VNG</option><option>TACÓ</option><option>TENIS</option><option>COLLADA</option>
+              <option>FONDO SOMELLA</option><option>PRAT DE VILANOVA</option><option>URB. SANTA MARIA</option>
+              <option>ROQUETES</option><option>CUBELLES</option><option>CAMPING VILANOVA PARK</option>
+              <option>BAR HIGUERA</option><option>CINES ODEON</option>
+            </select>
+          )}
+        </div>
+        {/* TELÉFONO con autocompletado */}
+        {(() => {
+          const clienteConocido = telefono.length >= 6 ? clientes[telefono] : null;
+          const sugerencias = telefono.length >= 3
+            ? Object.values(clientes).filter(c => c.telefono.includes(telefono) && c.telefono !== telefono).slice(0, 3)
+            : [];
+          return (
+            <div style={{ position:"relative" }}>
+              <input
+                placeholder="📞 Teléfono"
+                value={telefono}
+                onChange={e => {
+                  const val = e.target.value;
+                  setTelefono(val);
+                  // autocompletar si coincide exacto
+                  const found = clientes[val];
+                  if (found) {
+                    if (tipoPedido === "recoger" && found.nombre) setDireccion(found.nombre);
+                    if (tipoPedido === "llevar" && found.direccion) setDireccion(found.direccion);
+                    if (tipoPedido === "llevar" && found.zona) setZona(found.zona);
+                    if (found.metodoPago) setMetodoPago(found.metodoPago);
+                    if (found.avisos) setAvisos(found.avisos);
+                    if (found.notasCliente) setNotasPedido(found.notasCliente);
+                  }
+                }}
+                style={{...darkInput, width:"100%", boxSizing:"border-box",
+                  borderColor: clienteConocido ? "#16a34a" : undefined}}
+              />
+              {/* Badge cliente conocido */}
+              {clienteConocido && (
+                <div style={{ marginTop:"4px", background:"#14532d", border:"1px solid #16a34a", borderRadius:"8px", padding:"6px 10px", fontSize:"12px", color:"#4ade80", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span>✅ {clienteConocido.nombre || clienteConocido.direccion || "Cliente conocido"} · {clienteConocido.totalPedidos} pedido{clienteConocido.totalPedidos !== 1 ? "s" : ""}</span>
+                  <span style={{ color:"#666", fontSize:"11px" }}>{clienteConocido.ultimoPedido}</span>
+                </div>
+              )}
+              {/* Sugerencias mientras escribe */}
+              {sugerencias.length > 0 && (
+                <div style={{ position:"absolute", top:"100%", left:0, right:0, zIndex:99, background:"#1a1d2a", border:"1px solid #2a2f45", borderRadius:"8px", overflow:"hidden", marginTop:"2px" }}>
+                  {sugerencias.map(c => (
+                    <div key={c.telefono} onClick={() => {
+                      setTelefono(c.telefono);
+                      if (tipoPedido === "recoger" && c.nombre) setDireccion(c.nombre);
+                      if (tipoPedido === "llevar" && c.direccion) setDireccion(c.direccion);
+                      if (tipoPedido === "llevar" && c.zona) setZona(c.zona);
+                      if (c.metodoPago) setMetodoPago(c.metodoPago);
+                      if (c.avisos) setAvisos(c.avisos);
+                      if (c.notasCliente) setNotasPedido(c.notasCliente);
+                    }} style={{ padding:"8px 12px", cursor:"pointer", borderBottom:"1px solid #1e2130", fontSize:"13px", color:"#ddd" }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#252836"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{ color:"#a78bfa" }}>{c.telefono}</span>
+                      {" · "}
+                      <span>{c.nombre || c.direccion || "—"}</span>
+                      <span style={{ color:"#555", fontSize:"11px", marginLeft:"8px" }}>{c.totalPedidos} pedidos</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+        {/* TIEMPO — botones rápidos, fila única con scroll */}
+        <div style={{ display:"flex", gap:"4px", overflowX:"auto", paddingBottom:"2px" }}>
+          {[["10","10 min"],["15","15 min"],["20","20 min"],["25","25 min"],["30","30 min"],["35","35 min"],["40","40 min"],["45","45 min"],["50","50 min"],["1h","1h"],["1:10","1:10h"],["1:15","1:15h"],["1:20","1:20h"],["1:30","1:30h"]].map(([label, val]) => (
+            <button key={val} onClick={()=>setTiempo(tiempo===val ? "" : val)} style={{
+              flexShrink:0, width:"40px", height:"34px", borderRadius:"7px", cursor:"pointer",
+              fontSize:"11px", fontWeight:"bold", textAlign:"center",
+              background: tiempo===val ? "#7c3aed" : "#1a1d2a",
+              border: tiempo===val ? "1.5px solid #a78bfa" : "1px solid #2a2f45",
+              color: "#fff", padding:0
+            }}>{label}</button>
+          ))}
+        </div>
+        {/* AVISOS — solo para llevar */}
+        {tipoPedido === "llevar" && (
+          <select value={avisos} onChange={e=>setAvisos(e.target.value)} style={{...darkSelect, color: avisos ? "#f59e0b" : undefined, borderColor: avisos ? "#f59e0b" : undefined}}>
+            <option value="">🔔 Avisos de entrega</option>
+            <option value="NO VA TIMBRE">🔕 NO VA TIMBRE</option>
+            <option value="LLAMAR ANTES DE SALIR">📞 LLAMAR ANTES DE SALIR</option>
+            <option value="LLAMAR AL LLEGAR">🚪 LLAMAR AL LLEGAR</option>
+          </select>
+        )}
+        {/* NOTAS PEDIDO */}
+        <input
+          placeholder="📝 Notas del pedido..."
+          value={notasPedido}
+          onChange={e=>setNotasPedido(e.target.value)}
+          style={{...darkInput, color: notasPedido ? "#a78bfa" : undefined}}
+        />
+        <div style={{ display:"flex", gap:"8px" }}>
+          <button onClick={()=>setMetodoPago("EFECTIVO")} style={{ flex:1, padding:"10px", borderRadius:"8px", fontWeight:"bold", cursor:"pointer", border:"none", background: metodoPago==="EFECTIVO" ? "#16a34a" : "#1a1d2a", color: metodoPago==="EFECTIVO" ? "#fff" : "#888" }}>💵 Efectivo</button>
+          <button onClick={()=>setMetodoPago("VISA")} style={{ flex:1, padding:"10px", borderRadius:"8px", fontWeight:"bold", cursor:"pointer", border:"none", background: metodoPago==="VISA" ? "#1d4ed8" : "#1a1d2a", color: metodoPago==="VISA" ? "#fff" : "#888" }}>💳 Visa</button>
+        </div>
+      </div>
+    )}
+
+    {/* PASAR A LLEVAR / RECOGER */}
+    {tipoPedido !== "comer" && (
+      <button onClick={() => {
+        const nuevoTipo = tipoPedido==="llevar" ? "recoger" : "llevar";
+        const nuevoNumero = generarNumeroPedido(nuevoTipo);
+        const datosPedido = pedidos[tipoPedido][pedidoNumero];
+        setPedidos(prev => { const c={...prev}; c[nuevoTipo]={...c[nuevoTipo],[nuevoNumero]:datosPedido}; delete c[tipoPedido][pedidoNumero]; return c; });
+        setTipoPedido(nuevoTipo); setPedidoNumero(nuevoNumero);
+      }} style={{ width:"100%", marginTop:"8px", ...darkBtn("#1a1d2a","#a78bfa"), border:"1px solid #7c3aed" }}>
+        {tipoPedido==="llevar" ? "🔄 Pasar a RECOGER" : "🔄 Pasar a LLEVAR"}
+      </button>
+    )}
+
+    <button onClick={cancelarPedido} style={{ width:"100%", marginTop:"10px", padding:"12px", borderRadius:"8px", background:"transparent", border:"1.5px solid #dc2626", color:"#ef4444", fontWeight:"bold", fontSize:"14px", cursor:"pointer" }}>
+      {tipoPedido==="comer" ? "❌ Cancelar mesa" : "❌ Cancelar pedido"}
+    </button>
+
+    {/* MODAL NOTAS */}
+{productoEditando && (
+  <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:50 }}>
+    <div style={{ background:"#141720", border:"1px solid #2a2f45", borderRadius:"16px", padding:"20px", width:"320px" }}>
+      <div style={{ fontWeight:"bold", marginBottom:"12px", color:"#fff" }}>MODIFICACIONES</div>
+      <input placeholder="NOTA..." value={notaTemp} onChange={e=>setNotaTemp(e.target.value)} style={{...darkInput, marginBottom:"12px"}} />
+      {[["aceite","ACEITE"],["gluten","SIN GLUTEN"],["verdura","NO VERDURA"],["carne","NO CARNE"],["huevo","NO HUEVO"],["marisco","ALERGIA MARISCO"],["frutossecos","ALERGIA FRUTOS SECOS"]].map(([key,label])=>(
+        <div key={key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:"1px solid #1e2130" }}>
+          <span style={{ color:"#ccc", fontSize:"14px" }}>{label}</span>
+          <input type="checkbox" checked={!!checksTemp[key]} onChange={()=>setChecksTemp({...checksTemp,[key]:!checksTemp[key]})} style={{ width:"18px", height:"18px", accentColor:"#7c3aed" }} />
+        </div>
+      ))}
+      <div style={{ display:"flex", gap:"8px", marginTop:"16px" }}>
+        <button onClick={()=>{ guardarPedido(ticket.map(t=>t===productoEditando?{...t,nota:notaTemp,...checksTemp}:t)); setProductoEditando(null); }} style={{ flex:1, ...darkBtn("#16a34a") }}>GUARDAR</button>
+        <button onClick={()=>setProductoEditando(null)} style={{ flex:1, ...darkBtn("#1a1d2a","#aaa"), border:"1px solid #2a2f45" }}>CANCELAR</button>
+      </div>
+    </div>
+  </div>
+)}
+
+{subMenuEditando && (
+  <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:50 }}>
+    <div style={{ background:"#141720", border:"1px solid #2a2f45", borderRadius:"16px", padding:"20px", width:"320px" }}>
+      <div style={{ fontWeight:"bold", marginBottom:"12px", color:"#fff" }}>MODIFICAR {subMenuEditando.subRef}</div>
+      <input placeholder="NOTA..." value={notaTemp} onChange={e=>setNotaTemp(e.target.value)} style={{...darkInput, marginBottom:"12px"}} />
+      {[["aceite","ACEITE"],["gluten","SIN GLUTEN"],["verdura","NO VERDURA"],["carne","NO CARNE"],["huevo","NO HUEVO"],["marisco","ALERGIA MARISCO"],["frutossecos","ALERGIA FRUTOS SECOS"]].map(([key,label])=>(
+        <div key={key} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:"1px solid #1e2130" }}>
+          <span style={{ color:"#ccc", fontSize:"14px" }}>{label}</span>
+          <input type="checkbox" checked={!!checksTemp[key]} onChange={()=>setChecksTemp({...checksTemp,[key]:!checksTemp[key]})} style={{ width:"18px", height:"18px", accentColor:"#7c3aed" }} />
+        </div>
+      ))}
+      <div style={{ display:"flex", gap:"8px", marginTop:"16px" }}>
+        <button onClick={()=>{
+          const texto=[checksTemp.aceite&&"ACEITE",checksTemp.gluten&&"SIN GLUTEN",checksTemp.verdura&&"NO VERDURA",checksTemp.carne&&"NO CARNE",checksTemp.huevo&&"NO HUEVO",checksTemp.marisco&&"ALERGIA MARISCO",checksTemp.frutossecos&&"ALERGIA FRUTOS SECOS",notaTemp].filter(Boolean).join("\n");
+          guardarPedido(ticket.map(t=>t.ref===subMenuEditando.menuRef&&t.esMenuPadre?{...t,mods:{...t.mods,[subMenuEditando.subRef]:texto.toUpperCase()}}:t));
+          setSubMenuEditando(null);
+        }} style={{ flex:1, ...darkBtn("#16a34a") }}>GUARDAR</button>
+        <button onClick={()=>setSubMenuEditando(null)} style={{ flex:1, ...darkBtn("#1a1d2a","#aaa"), border:"1px solid #2a2f45" }}>CANCELAR</button>
+      </div>
+    </div>
+  </div>
+)}
+
+  </div>
+  {/* FIN COLUMNA IZQUIERDA */}
+
+  {/* COLUMNA DERECHA — Ticket completo */}
+  <div style={{
+    width:"280px", flexShrink:0, background:"#141720", borderLeft:"1px solid #1e2130",
+    display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", position:"sticky", top:"56px"
+  }}>
+    <div style={{ padding:"12px 14px", borderBottom:"1px solid #1e2130", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+      <span style={{ fontWeight:"bold", fontSize:"14px", color:"#a78bfa" }}>Pedido actual</span>
+      <span style={{ background:"#1e2130", color:"#888", fontSize:"11px", padding:"2px 8px", borderRadius:"10px" }}>
+        {ticket.reduce((s,t)=>s+t.cantidad,0)} ítem{ticket.reduce((s,t)=>s+t.cantidad,0)!==1?"s":""}
+      </span>
+    </div>
+    <div style={{ flex:1, overflowY:"auto", padding:"8px 14px" }}>
+      {ticket.length === 0 ? (
+        <div style={{ color:"#333", fontSize:"13px", textAlign:"center", paddingTop:"40px" }}>Sin artículos</div>
+      ) : ticket.map((t, i) => {
+        if (t.esHijoMenu) return null;
+        const menu = MENUS?.[t.ref];
+        return (
+          <div key={i} style={{ borderBottom:"1px solid #1e2130", padding:"8px 0" }}>
+            <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between" }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:"bold", fontSize:"15px", color:"#fff" }}>{t.cantidad} × {t.ref}</div>
+                <div style={{ fontSize:"11px", color:"#555" }}>{t.nombre}</div>
+                {menu && (
+                  <div style={{ fontSize:"11px", fontWeight:"bold", color:"#7c6fd0", paddingLeft:"8px", marginTop:"2px" }}>
+                    {menu.items.map(([r]) => {
+                      const mod = t.mods?.[r] ?? "";
+                      return <div key={r} onClick={() => editarSubMenu(t.ref, r)} style={{ cursor:"pointer" }}>{r}{mod ? ` ${mod}` : ""}</div>;
+                    })}
+                  </div>
+                )}
+                {(t.nota||t.aceite||t.gluten||t.verdura||t.carne||t.huevo||t.marisco||t.frutossecos) && (
+                  <div style={{ fontSize:"10px", fontWeight:"bold", color:"#f59e0b", marginTop:"2px" }}>
+                    {[t.verdura&&"NO VERDURA",t.carne&&"NO CARNE",t.gluten&&"SIN GLUTEN",t.aceite&&"ACEITE",t.huevo&&"NO HUEVO",t.marisco&&"ALERGIA MARISCO",t.frutossecos&&"ALERGIA F.SECOS",t.nota].filter(Boolean).join(" / ")}
+                  </div>
+                )}
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:"4px", marginLeft:"6px" }}>
+                <span style={{ fontWeight:"bold", fontFamily:"monospace", color:"#fff", fontSize:"13px" }}>{(t.precio*t.cantidad).toFixed(2)}€</span>
+                <div style={{ display:"flex", gap:"3px" }}>
+                  {[["➖",()=>restar(t.ref)],["➕",()=>sumar(t.ref)],["📝",()=>editarNota(t)],["❌",()=>eliminarLinea(t.ref)]].map(([ico,fn])=>(
+                    <button key={ico} onClick={(e)=>{e.stopPropagation();fn();}} style={{ background:"#1a1d2a", border:"1px solid #2a2f45", color:"#aaa", width:"24px", height:"24px", borderRadius:"5px", cursor:"pointer", fontSize:"11px" }}>{ico}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    {/* TOTAL + INFO CLIENTE */}
+    <div style={{ padding:"10px 14px", borderTop:"1px solid #1e2130" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", fontWeight:"bold", fontSize:"18px", color:"#fff", marginBottom:"8px" }}>
+        <span>Total</span>
+        <span>{total.toFixed(2)}€</span>
+      </div>
+      {(tipoPedido === "llevar" || tipoPedido === "recoger") && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"3px", marginBottom:"8px" }}>
+          {direccion && <div style={{ color:"#999", fontSize:"12px" }}>📍 {direccion}{zona ? ` · ${zona}` : ""}</div>}
+          {telefono && <div style={{ color:"#a78bfa", fontSize:"12px" }}>📞 {telefono}</div>}
+          {avisos && <div style={{ color:"#f59e0b", fontSize:"12px", fontWeight:"bold" }}>⚠️ {avisos}</div>}
+          {notasPedido && <div style={{ color:"#a78bfa", fontSize:"12px" }}>📝 {notasPedido}</div>}
+          {metodoPago && <div style={{ color: metodoPago==="EFECTIVO" ? "#4ade80" : "#60a5fa", fontSize:"12px", fontWeight:"bold" }}>{metodoPago==="EFECTIVO"?"💵":"💳"} {metodoPago}</div>}
+          {tiempo && <div style={{ color:"#888", fontSize:"12px" }}>⏱ {tiempo} → {calcularHoraEntrega(tiempo)}</div>}
+        </div>
+      )}
+      {porPersona && tipoPedido === "comer" && (
+        <div style={{ color:"#555", fontSize:"12px", marginBottom:"6px" }}>Por persona: {porPersona}€</div>
+      )}
+      {/* CONFIRMAR + IMPRIMIR */}
+      <div style={{ display:"flex", gap:"8px", marginTop:"6px" }}>
+        <button
+          onClick={() => {
+            if (ticket.length === 0) return;
+            guardarPedido();
+            const tipoPanel = tipoPedido === "comer" ? "salon" : tipoPedido;
+            setModoPedidos(true);
+            setPedidoSeleccionado({ tipo: tipoPanel, id: pedidoNumero });
+          }}
+          style={{
+            flex:1, padding:"12px 8px", borderRadius:"10px", fontWeight:"bold",
+            fontSize:"14px", cursor:"pointer", border:"none",
+            background: ticket.length > 0 ? "linear-gradient(135deg,#7c3aed,#6d28d9)" : "#1a1d2a",
+            color: ticket.length > 0 ? "#fff" : "#555"
+          }}
+        >✅ Confirmar</button>
+        <button
+          onClick={() => { if (ticket.length === 0) return; setModoCocina(true); }}
+          style={{
+            width:"48px", padding:"12px 0", borderRadius:"10px", fontWeight:"bold",
+            fontSize:"18px", cursor:"pointer", border:"1px solid #2a2f45",
+            background:"#1a1d2a", color: ticket.length > 0 ? "#fff" : "#555"
+          }}
+          title="Imprimir comanda"
+        >🖨️</button>
+      </div>
+      {tipoPedido === "comer" && (
+        <button
+          onClick={() => { setNumeroTicket(generarNumeroTicket()); setModoTicket(true); }}
+          style={{ width:"100%", marginTop:"6px", padding:"10px", borderRadius:"10px", fontWeight:"bold", fontSize:"13px", cursor:"pointer", border:"1px solid #2a2f45", background:"#1a1d2a", color:"#ccc" }}
+        >🧾 Ticket</button>
+      )}
+    </div>
+  </div>
+
+  </div>
+  </div>
+);
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<POSApp />);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./sw.js")
+      .then(reg => console.log("Service Worker registrado", reg))
+      .catch(err => console.log("Error registrando SW", err));
+  });
+}
+
+      </script>
+</body>
+</html>
